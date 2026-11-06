@@ -1,0 +1,74 @@
+/* Site audit page. Scoped under .seoc-app like every SEO Console style. */
+.seoc-app {
+	.seoc-audit-code {
+		font-family: Menlo, Consolas, monospace;
+		font-size: 13px;
+		background: #f6f7f7;
+		border: 1px solid #dcdcde;
+		padding: 12px;
+		max-height: 360px;
+		overflow: auto;
+		white-space: pre-wrap;
+		word-break: break-all;
+	}
+
+	.seoc-audit-groups > li,
+	.seoc-audit-checks > li {
+		border-bottom: 1px solid #dcdcde;
+		padding: 12px 0;
+	}
+
+	.seoc-audit-group__head {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		align-items: center;
+	}
+
+	.seoc-audit-group__body {
+		margin-top: 8px;
+	}
+
+	.seoc-audit-data > div {
+		margin-bottom: 4px;
+		overflow-wrap: anywhere;
+	}
+
+	.seoc-audit-urls {
+		margin: 4px 0 0;
+	}
+
+	.seoc-audit-facts {
+		display: grid;
+		grid-template-columns: minmax(140px, max-content) 1fr;
+		gap: 4px 16px;
+
+		dt {
+			font-weight: 600;
+		}
+
+		dd {
+			margin: 0;
+			overflow-wrap: anywhere;
+		}
+	}
+
+	.seoc-audit-top > li {
+		margin-bottom: 12px;
+	}
+
+	.seoc-audit-cross {
+		margin-bottom: 8px;
+
+		summary {
+			cursor: pointer;
+		}
+	}
+
+	.seoc-audit-quote {
+		border-left: 4px solid #dcdcde;
+		margin: 8px 0;
+		padding: 8px 12px;
+		background: #f6f7f7;
+	}
+}
