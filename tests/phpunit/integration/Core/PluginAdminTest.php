@@ -117,8 +117,10 @@ class PluginAdminTest extends CoreTestCase {
 		$this->login( 'administrator' );
 		Plugin::instance()->settings()->set_enabled( 'fake2', true );
 		$menu  = new Menu( Plugin::instance() );
-		$slugs = wp_list_pluck( $menu->pages(), 'slug' );
-		$this->assertSame( array( 'seo-console', 'seo-console-suggestions', 'seo-console-fake', 'seo-console-changes', 'seo-console-settings' ), $slugs );
+		$known = array( 'seo-console', 'seo-console-suggestions', 'seo-console-fake', 'seo-console-changes', 'seo-console-settings' );
+		// Built-in modules add their own pages; only the order of the core + fake pages is checked here.
+		$slugs = array_values( array_intersect( wp_list_pluck( $menu->pages(), 'slug' ), $known ) );
+		$this->assertSame( $known, $slugs );
 
 		$_GET['page'] = 'seo-console-settings';
 		set_current_screen( 'dashboard' );
