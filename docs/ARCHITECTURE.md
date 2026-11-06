@@ -207,7 +207,7 @@ Long-running state lives in the module's tables, never in transients.
 - Default model `claude-opus-5-5` (setting `ai_model`). For `claude-opus-5-5` and `claude-sonnet-5-5` the request adds
   `"fallbacks": "default"` with header `anthropic-beta: server-side-fallback-2026-07-01` so a safety decline falls back
   server-side. Always check `stop_reason` (`refusal`, `max_tokens`) before reading content.
-- `structured( string $system, array $messages, array $json_schema, array $opts ): array|WP_Error` uses
+- `AI\ClientInterface` (implemented by `ClaudeClient`) — modules depend on the interface. `structured( string $system, array $messages, array $json_schema, array $opts ): array|WP_Error` uses
   `output_config: { format: { type: 'json_schema', schema }, effort }` and returns the decoded object; the caller still
   validates every field (lengths, allowed values, strip tags). `chat( string $system, array $messages, array $opts )`
   returns text. Options: `effort` (`low` default for extraction/meta, `medium` for chat), `max_tokens` (default 16000),
