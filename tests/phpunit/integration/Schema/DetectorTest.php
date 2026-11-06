@@ -145,7 +145,8 @@ class DetectorTest extends WP_UnitTestCase {
 	}
 
 	public function test_active_seo_plugin_fallback(): void {
-		$this->assertSame( 'none', Detector::active_seo_plugin() );
+		$expected = defined( 'RANK_MATH_VERSION' ) ? 'rankmath' : ( defined( 'WPSEO_VERSION' ) ? 'yoast' : 'none' );
+		$this->assertSame( $expected, Detector::active_seo_plugin() );
 		$this->assertSame( 'none', ( new Detector( 'bogus' ) )->seo_plugin() );
 	}
 }
