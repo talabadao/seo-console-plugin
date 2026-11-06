@@ -331,15 +331,15 @@ class Crawler {
 		$robots  = ! empty( $state['robots']['exists'] ) ? RobotsTxt::parse( (string) $state['robots']['content'] ) : null;
 		$delay   = (int) $settings['delay_ms'];
 		$ua      = $this->fetcher->user_agent();
-		$run     = $this->store->get_run( $run_id );
-		$crawled = (int) $run['pages_crawled'];
+		$states  = $this->store->count_pages_by_state( $run_id );
+		$crawled = (int) ( $states['crawled'] ?? 0 ) + (int) ( $states['error'] ?? 0 ); // From the rows: survives a step killed mid-way.
 		if ( $robots && $settings['respect_robots'] ) {
 			$crawl_delay = $robots->crawl_delay( $ua );
 			if ( null !== $crawl_delay ) {
 				$delay = max( $delay, (int) min( 2000, $crawl_delay * 1000 ) );
 			}
 		}
-		$this->found = array_sum( $this->store->count_pages_by_state( $run_id ) );
+		$this->found = array_sum( $states );
 
 		$requests = 0;
 		$avg      = 0.2;

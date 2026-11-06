@@ -301,6 +301,35 @@ class CrawlerTest extends AuditTestCase {
 		$this->assertTrue( $crawler->step( $run_id )['done'] );
 	}
 
+	public function test_host_variants(): void {
+		$this->set_permalink_structure( '/%postname%/' );
+		$page = static function ( $links ) {
+			return MockHttp::html( '<html lang="en"><head><title>Host variant test page title here</title></head><body>' . $links . '</body></html>' );
+		};
+		$http = ( new MockHttp(
+			array(
+				'http://example.org/robots.txt'       => MockHttp::text( "User-agent: *\nDisallow:\n" ),
+				'http://example.org/'                 => $page( '<a href="http://www.example.org/www-redirect/">A</a> <a href="https://example.org/served-on-https/">B</a>' ),
+				'http://www.example.org/www-redirect/' => MockHttp::redirect( 'http://example.org/target/' ),
+				'http://example.org/target/'          => $page( 'Target' ),
+				'https://example.org/served-on-https/' => $page( '<a href="/never-followed/">C</a>' ),
+			)
+		) )->install();
+		$crawler = $this->crawler();
+		$run_id  = $crawler->start( self::FAST );
+		$this->finish( $crawler, $run_id );
+
+		$variant = $this->store->get_page_by_url( $run_id, 'https://example.org/served-on-https/' );
+		$this->assertSame( 'host_variant', $variant['indexability'] );
+		$this->assertTrue( $variant['extra']['host_variant'] );
+		$this->assertSame( 0, $http->count( 'https://example.org/never-followed/' ), 'Links on host variants are not followed.' );
+		$this->assertSame( 'crawled', $this->page( $run_id, '/target/' )['crawl_state'] );
+
+		$issues = $this->issues_by_rule( $run_id );
+		$this->assertSame( array( 'http://example.org/' ), $issues['links_to_redirect'] );
+		$this->assertArrayNotHasKey( 'title_missing', $issues );
+	}
+
 	public function test_settings_are_clamped(): void {
 		$settings = \SEOConsole\Modules\Audit\Crawler::sanitize_settings(
 			array(
