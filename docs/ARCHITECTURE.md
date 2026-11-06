@@ -96,7 +96,10 @@ Modules talk to each other only through actions/filters listed in §11, never by
 - API: `get( $module, $key )`, `set( $module, $key, $value )`, `all( $module )`, `is_enabled( $module )`, `set_enabled( $module, bool )`.
   `general` keys: `ai_model` (enum, default `claude-opus-5-5`; also `claude-sonnet-5-5`, `claude-haiku-5-5`),
   `ai_monthly_budget_usd` (int, default 20, 0 = AI off), `keep_data_on_uninstall` (bool, false), `seo_plugin` (enum
-  `auto|rankmath|yoast|none`, default `auto`).
+  `auto|rankmath|yoast|none`, default `auto`), `safe_mode` (bool, false; the constant `SEOC_SAFE_MODE` wins),
+  `log_level` (enum `debug|info|warning|error`, default `info`).
+  Extra API: `update( $module, array $values )` (all-or-nothing), `validate( $module, $key, $value )` (clean value or
+  WP_Error), `schema( $module )`. Disabling a module fires `seoc_module_toggled( $id, $enabled )` → `on_disable()`.
 - `Secrets` stores API keys in option `seoc_secrets` (autoload no), encrypted with libsodium `crypto_secretbox`
   (key derived from `wp_salt( 'auth' )`; WordPress ships sodium_compat). A constant overrides storage:
   `SEOC_CLAUDE_API_KEY`, `SEOC_GOOGLE_API_KEY`. API: `get( $name )`, `set( $name, $value )`, `delete( $name )`,
@@ -154,11 +157,14 @@ Built-in appliers (core): `seo_meta` (title / description / focus_keyword throug
 Table `seoc_suggestions`: `id, created_at, updated_at, module, type, object_type, object_id, field,
 current_value (JSON, value when proposed), proposed_value (JSON), final_value (JSON, what was applied, may be edited),
 rationale (text), confidence (float 0–1, nullable), source ('ai'|'rule'|'mcp'), model (varchar, nullable),
-status ('pending'|'applied'|'rejected'|'failed'|'stale'), change_id, error, created_by`.
+status ('pending'|'applied'|'rejected'|'failed'|'stale'), change_id, error, created_by, meta (JSON object, nullable,
+e.g. { "warnings": ["…"] })`.
 
 `SuggestionService`:
-- `create( array $data ): int|WP_Error` — validates through the applier; a pending suggestion for the same
-  `type/object_type/object_id/field` is updated instead of duplicated.
+- `create( array $data, array $meta = [] ): int|WP_Error` — validates through the applier; a pending suggestion for the
+  same `type/object_type/object_id/field` is updated instead of duplicated. `$data['meta']` (array) and `$meta` are
+  merged into the `meta` column, so `[ $service, 'create' ]` can be passed as a sink callable. A proposal equal to the
+  live value returns `seoc_no_change`.
 - `query( array $args ): array` — filters `status, module, type, object_type, object_id`, `page`, `per_page` (≤100);
   returns `[ 'items' => [...], 'total' => int ]`. Items include `object_title` and `edit_link` for posts/terms.
 - `approve( int $id, $edited_value = null, bool $force = false ): Change|WP_Error` — if the live value differs from
@@ -212,8 +218,11 @@ Long-running state lives in the module's tables, never in transients.
   validates every field (lengths, allowed values, strip tags). `chat( string $system, array $messages, array $opts )`
   returns text. Options: `effort` (`low` default for extraction/meta, `medium` for chat), `max_tokens` (default 16000),
   `cache_system` (bool → `cache_control: {type:'ephemeral'}` on the system block).
-- Errors: 401 → `seoc_ai_auth`, 400 → `seoc_ai_request`, 429/500/529 → up to 2 retries honoring `retry-after`
-  (cap 10 s) then `seoc_ai_unavailable`; network → `seoc_ai_network`. Timeout 120 s.
+- Errors: 401/403 → `seoc_ai_auth`, 400 (other 4xx) → `seoc_ai_request`, 429/5xx/529 → up to 2 retries honoring
+  `retry-after` (cap 10 s) then `seoc_ai_unavailable`; network → `seoc_ai_network`; request timed out →
+  `seoc_ai_timeout`. Timeout 120 s. Response checks: `stop_reason` `refusal` → `seoc_ai_refusal` (data `category`),
+  `max_tokens` → `seoc_ai_truncated`, structured output not decodable → `seoc_ai_invalid_json`. Also `seoc_ai_no_key`
+  (no key) and `seoc_ai_budget` (data `reason`: `disabled` when the budget is 0, `exhausted`).
 - `AI\Usage` records per call: model, input/output/cache tokens, estimated USD (prices per 1M tokens: Opus 5.5 $4/$20,
   Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50; cache reads 10% of input). When this month's estimate reaches
   `ai_monthly_budget_usd`, calls return `seoc_ai_budget` until next month or until the budget is raised.
@@ -241,7 +250,7 @@ with `seoc_*` codes and HTTP status.
 |---|---|
 | `GET /status` | HelperCompat (permission `edit_posts`) |
 | `GET /settings`, `POST /settings` | General + per-module settings; secrets only as `{ has, masked, source }`; `POST` accepts `secrets: { claude_api_key, google_api_key }` (empty string deletes) |
-| `POST /settings/test-ai` | One tiny request to verify the key + model |
+| `POST /settings/test-ai` | One tiny request to verify the key + model. Body `{ model?, api_key? }`: an unsaved typed key is used for this request only (never stored, never echoed) |
 | `GET /suggestions` | Query (§7.3) |
 | `POST /suggestions/{id}/approve` | Body `{ value?, force? }` |
 | `POST /suggestions/{id}/reject` | |
@@ -257,7 +266,8 @@ Modules add their own routes under `seo-console/v1/<module>/…`.
 - Top-level menu "SEO Console" (dashicons `dashicons-chart-area`). Core pages: Dashboard, Suggestions, Change log,
   Settings. Module pages come from `admin_pages()`: `[ 'slug' => 'seo-console-speed', 'title' => 'Speed',
   'entry' => 'speed', 'position' => 20 ]`.
-- Each page renders `<div id="seoc-root" data-page="<entry>"></div>` and enqueues `build/<entry>.js` with its
+- Each page renders `<div id="seoc-root" data-page="<entry>"></div>` (the React `Page` adds `.seoc-app` and the
+  `wp-header-end` marker) and enqueues `build/<entry>.js` with its
   `build/<entry>.asset.php` dependencies plus a shared inline config `window.seocConfig` = `{ restNamespace,
   adminUrl, pluginUrl, version, page, modules: {id: enabled}, seoPlugin, cachePlugins, safeMode, aiConfigured }`.
 - Shared components in `src/admin/shared/`: `api.js` (apiFetch wrapper with error → message), `Page` (header + notices),
@@ -290,3 +300,51 @@ Modules add their own routes under `seo-console/v1/<module>/…`.
   `tests/phpunit/fixtures/`.
 - Each feature PR ships tests for: happy path, permission denied, invalid input, external API error, and (for appliers)
   apply → revert round trip.
+
+## 16. REST response shapes
+
+All dates are ISO 8601 UTC (`2026-11-06T10:00:00Z`). JSON values (`*_value`, `meta`) are decoded. Errors are
+`{ code, message, data: { status, … } }`.
+
+### Shared item shapes
+
+**Suggestion item** (`SuggestionService::to_rest()`):
+`{ id, created_at, updated_at, module, type, label, field_label, object_type, object_id, field, current_value,
+proposed_value, final_value, rationale, confidence (0–1|null), source, model, status, change_id, error, created_by,
+meta (object|null), object_title, edit_link, view_link }` — `label` and `field_label` are the applier's label for the field.
+
+**Change item** (`ChangeManager::to_rest()`):
+`{ id, created_at, user_id, user_name, source, module, type, label, field_label, object_type, object_id, field,
+before_value, after_value, status, error, suggestion_id, batch_id, note, reverted_at, reverted_by, reverted_by_name,
+can_revert, object_title, edit_link, view_link }`.
+
+`object_title` / `edit_link` / `view_link`: post/attachment → title, edit URL, permalink (attachment file URL); term →
+name, edit URL, archive URL; option/site → site name, '', home URL.
+
+### Routes
+
+| Route | 200 body |
+|---|---|
+| `GET /status` | `{ ok: true, version, plugin: 'seo-console', features: string[] }` (features: `seo_meta_rest`, `suggestions`, `change_log`, `module:<id>` per enabled module; filter `seoc_status_features`) |
+| `GET /settings`, `POST /settings` | `{ general: { ai_model, ai_monthly_budget_usd, keep_data_on_uninstall, seo_plugin, safe_mode, log_level }, modules: { <id>: { enabled, …module keys } }, module_info: { <id>: { title, description } }, schema: { general: { key: schemaEntry }, modules: { <id>: { title, description, default_enabled, settings: { key: schemaEntry } } } }, secrets: { claude_api_key: { has, masked, source }, google_api_key: { has, masked, source } }, safe_mode: { on, source: 'constant'|'setting'|'off' }, ai_usage: { month, calls, input_tokens, output_tokens, cost_usd, month_cost_usd, budget_usd, remaining_usd } }` |
+| `POST /settings` body | `{ general?: {…}, modules?: { <id>: {…} }, secrets?: { claude_api_key?, google_api_key? } }` — partial sections; validated first, nothing saved on error: `400 seoc_invalid_settings`, `data.errors = { 'general.ai_model': message, … }`. Empty secret string deletes it. Returns the full GET shape |
+| `POST /settings/test-ai` | `{ ok: true, model, message, latency_ms }`; errors `seoc_ai_*` |
+| `GET /suggestions` | `{ items: SuggestionItem[], total, page, per_page, counts: { pending, applied, rejected, failed, stale } }` + headers `X-WP-Total`, `X-WP-TotalPages`. Query: `status` (default `pending`, or `all`), `module`, `type`, `object_type`, `object_id`, `page`, `per_page` ≤ 100 |
+| `POST /suggestions/{id}/approve` | `{ suggestion: SuggestionItem, change: ChangeItem }`. Errors: `409 seoc_stale` (`data.current_value`), `409 seoc_invalid_status`, `404 seoc_not_found`, `400` validation codes (suggestion stays pending), `500 seoc_health_failed` (`data.checks`, `data.change_id`; suggestion → failed) |
+| `POST /suggestions/{id}/reject` | `{ suggestion: SuggestionItem }` |
+| `POST /suggestions/bulk` | `{ results: [ { id, ok, change_id?, code?, message? } ] }` (approvals run as one batch with one health check) |
+| `GET /changes` | `{ items: ChangeItem[], total, page, per_page }` + `X-WP-Total`, `X-WP-TotalPages`. Query: `module`, `status`, `object_type`, `object_id`, `page`, `per_page` ≤ 100 |
+| `POST /changes/{id}/revert` | `{ change: ChangeItem }`. Errors: `409 seoc_conflict` (`data.current_value`, `data.after_value`), `409 seoc_not_applied`, `404 seoc_not_found`, `500 seoc_health_failed` (`data.checks`) |
+| `GET /environment` | `{ facts: { php_version, wp_version, plugin_version, server_software, memory_limit, wp_memory_limit, seo_plugin, seo_plugins, cache_plugins, safe_mode, multisite }, checks: [ { id, label, value, status: 'good'|'needs-work'|'poor'|'unknown', description } ], generated_at }` (filter `seoc_environment_checks( $checks, $facts )`) |
+
+`window.seocConfig` (§13) also carries `moduleInfo: { <id>: { title, description, page (first admin page slug|null) } }`,
+`dashboardCards` (filter `seoc_dashboard_cards`), `checklist: { speedTested, auditRun }` (filter `seoc_checklist`,
+default false), `googleConfigured`, `pages: [ { slug, title, entry, url } ]`, `canManage`.
+
+### Core hooks added by the core implementation
+
+`seoc_builtin_modules` (filter, class names), `seoc_module_toggled( $id, $enabled )`, `seoc_ensure_jobs( $plugin )`
+(schedule recurring jobs; fired after activation, after a module is enabled and daily), `seoc_change_failed( $change )`,
+`seoc_suggestion_created( $id, $updated )`, `seoc_suggestion_applied( $id, $change )`, `seoc_suggestion_rejected( $id )`,
+`seoc_cache_purged( $ids, $url|null )`, `seoc_health_check_pre` (filter, short-circuit; useful in tests),
+`seoc_safe_mode` (filter), `seoc_is_frontend_request` (filter), `seoc_cache_plugins` (filter), `seoc_time_budget` (filter).
