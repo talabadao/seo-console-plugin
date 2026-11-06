@@ -20,8 +20,8 @@ class Maintenance {
 	/** Batch size for one cleanup call (keeps each request short on shared hosting). */
 	const BATCH = 2000;
 
-	/** Finished Action Scheduler statuses that may be cleaned up. */
-	const AS_DONE = array( 'complete', 'failed', 'canceled' );
+	/** Finished Action Scheduler statuses that may be cleaned up (failed actions are kept for diagnosis). */
+	const AS_DONE = array( 'complete', 'canceled' );
 
 	/**
 	 * Full report.
@@ -194,7 +194,8 @@ class Maintenance {
 	 * Action Scheduler counts by status, and how many finished actions are older than $days.
 	 *
 	 * @param int $days Age in days.
-	 * @return array [ 'available' => bool, 'complete', 'failed', 'canceled', 'pending', 'old_finished', 'days', 'verdict' ]
+	 * @return array [ 'available' => bool, 'complete', 'failed', 'canceled', 'pending', 'old_finished', 'days', 'verdict',
+	 *                 'groups' => [ [ 'group' => slug ('' = none), 'old_finished' => int ] ] (biggest first, max 20) ]
 	 */
 	public function action_scheduler_stats( int $days = 30 ): array {
 		global $wpdb;
@@ -207,6 +208,7 @@ class Maintenance {
 			'old_finished' => 0,
 			'days'         => $days,
 			'verdict'      => 'good',
+			'groups'       => array(),
 		);
 		$tables = $this->as_tables();
 		if ( null === $tables ) {
@@ -226,18 +228,37 @@ class Maintenance {
 		$cutoff                = $this->cutoff( $days );
 		$stats['old_finished'] = (int) $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$table} WHERE status IN ( %s, %s, %s ) AND scheduled_date_gmt < %s AND ( last_attempt_gmt IS NULL OR last_attempt_gmt < %s )",
+				"SELECT COUNT(*) FROM {$table} WHERE status IN ( %s, %s ) AND scheduled_date_gmt < %s AND ( last_attempt_gmt IS NULL OR last_attempt_gmt < %s )",
 				array_merge( self::AS_DONE, array( $cutoff, $cutoff ) )
 			)
 		);
+		if ( $stats['old_finished'] > 0 ) {
+			$groups_table = $wpdb->prefix . 'actionscheduler_groups';
+			$has_groups   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $groups_table ) ) ) === $groups_table;
+			$join         = $has_groups ? "LEFT JOIN {$groups_table} g ON g.group_id = a.group_id" : '';
+			$slug         = $has_groups ? 'COALESCE(g.slug, \'\')' : "''";
+			$rows         = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT {$slug} AS slug, COUNT(*) AS cnt FROM {$table} a {$join} WHERE a.status IN ( %s, %s ) AND a.scheduled_date_gmt < %s AND ( a.last_attempt_gmt IS NULL OR a.last_attempt_gmt < %s ) GROUP BY slug ORDER BY cnt DESC LIMIT 20",
+					array_merge( self::AS_DONE, array( $cutoff, $cutoff ) )
+				),
+				ARRAY_A
+			);
+			foreach ( (array) $rows as $row ) {
+				$stats['groups'][] = array(
+					'group'        => (string) $row['slug'],
+					'old_finished' => (int) $row['cnt'],
+				);
+			}
+		}
 		// phpcs:enable
 		$stats['verdict'] = $stats['old_finished'] > 10000 ? 'needs-work' : 'good';
 		return $stats;
 	}
 
 	/**
-	 * Deletes finished (complete/failed/canceled) Action Scheduler actions older than $days and their logs.
-	 * Pending and running actions are never touched.
+	 * Deletes finished (complete/canceled) Action Scheduler actions of every group older than $days and their logs.
+	 * Pending, running and failed actions are never touched.
 	 *
 	 * @param int $days  Age in days (min 7).
 	 * @param int $limit Max actions per call.
@@ -266,7 +287,7 @@ class Maintenance {
 			'intval',
 			(array) $wpdb->get_col(
 				$wpdb->prepare(
-					"SELECT action_id FROM {$table} WHERE status IN ( %s, %s, %s ) AND scheduled_date_gmt < %s AND ( last_attempt_gmt IS NULL OR last_attempt_gmt < %s ) ORDER BY action_id ASC LIMIT %d",
+					"SELECT action_id FROM {$table} WHERE status IN ( %s, %s ) AND scheduled_date_gmt < %s AND ( last_attempt_gmt IS NULL OR last_attempt_gmt < %s ) ORDER BY action_id ASC LIMIT %d",
 					array_merge( self::AS_DONE, array( $cutoff, $cutoff, $limit + 1 ) )
 				)
 			)
