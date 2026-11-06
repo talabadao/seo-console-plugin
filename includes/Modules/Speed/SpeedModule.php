@@ -150,7 +150,7 @@ class SpeedModule extends AbstractModule {
 		}
 
 		add_action( SpeedRunner::HOOK_RUN, array( $runner, 'scheduled_run' ) );
-		add_action( SpeedRunner::HOOK_TEST, array( $runner, 'test_url' ) );
+		add_action( SpeedRunner::HOOK_TEST, array( $runner, 'test_url' ), 10, 2 );
 		add_action( SpeedRunner::HOOK_CRUX, array( $this, 'crux_job' ) );
 		add_action( SpeedRunner::HOOK_HISTORY, array( $this, 'crux_history_job' ) );
 		add_action( SpeedRunner::HOOK_PRUNE, array( $runner, 'prune' ) );

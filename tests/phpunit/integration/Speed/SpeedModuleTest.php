@@ -62,9 +62,9 @@ class SpeedModuleTest extends SpeedTestCase {
 		$this->assertWPError( $second );
 		$this->assertSame( 'seoc_speed_run_active', $second->get_error_code() );
 
-		foreach ( $rows as $row ) {
-			$this->runner()->test_url( $row['id'] );
-		}
+		// Through the Action Scheduler hook (as the queue would run it), then directly.
+		do_action( SpeedRunner::HOOK_TEST, $rows[0]['id'] );
+		$this->runner()->test_url( $rows[1]['id'] );
 		$this->runner()->test_url( $rows[0]['id'] ); // Idempotent.
 
 		$run = $this->runner()->store()->get_run( $run['id'] );
@@ -111,7 +111,7 @@ class SpeedModuleTest extends SpeedTestCase {
 		$row = $this->runner()->store()->get_result( $row['id'] );
 		$this->assertSame( 'retry', $row['status'] );
 		$this->assertSame( 'seoc_psi_quota', $row['error_code'] );
-		$next = as_next_scheduled_action( SpeedRunner::HOOK_TEST, array( $row['id'] ), 'seo-console' );
+		$next = as_next_scheduled_action( SpeedRunner::HOOK_TEST, array( $row['id'], 1 ), 'seo-console' );
 		$this->assertGreaterThanOrEqual( time() + 80, $next );
 		$this->assertSame( 'running', $this->runner()->store()->get_run( $run['id'] )['status'] );
 

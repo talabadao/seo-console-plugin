@@ -210,8 +210,11 @@ class SpeedRunner {
 	 * Action `seoc_speed_test_url`: one PSI request for one result row.
 	 *
 	 * @param int $result_id Result id.
+	 * @param int $attempt   Attempt number (retries are scheduled with it so Action Scheduler's
+	 *                       uniqueness check does not see the still-running first action as a duplicate).
 	 */
-	public function test_url( $result_id ): void {
+	public function test_url( $result_id, $attempt = 0 ): void {
+		unset( $attempt );
 		$result = $this->store->get_result( (int) $result_id );
 		if ( null === $result || ! in_array( $result['status'], SpeedStore::OPEN, true ) ) {
 			return; // Already done (idempotent).
@@ -258,7 +261,7 @@ class SpeedRunner {
 			);
 			if ( $retry ) {
 				$wait = isset( $data['retry_after'] ) && is_numeric( $data['retry_after'] ) ? (int) $data['retry_after'] : 120;
-				$this->plugin->queue()->schedule_single( self::HOOK_TEST, time() + max( 60, min( 3600, $wait ) ), array( $result['id'] ) );
+				$this->plugin->queue()->schedule_single( self::HOOK_TEST, time() + max( 60, min( 3600, $wait ) ), array( $result['id'], $attempts ) );
 				return;
 			}
 			$this->plugin->logger()->warning(
@@ -616,8 +619,11 @@ class SpeedRunner {
 
 	/**
 	 * Action `seoc_speed_change_retest`.
+	 *
+	 * @param mixed $marker 'later' when re-scheduled behind a running test (ignored).
 	 */
-	public function run_retest(): void {
+	public function run_retest( $marker = null ): void {
+		unset( $marker );
 		$pending = get_option( self::RETEST_OPTION );
 		if ( ! is_array( $pending ) || empty( $pending['change_id'] ) ) {
 			return;
@@ -625,7 +631,8 @@ class SpeedRunner {
 		$run = $this->start_run( 'change', (int) $pending['change_id'] );
 		if ( is_wp_error( $run ) && 'seoc_speed_run_active' === $run->get_error_code() ) {
 			// Try again after the running test; keep the pending change.
-			$this->plugin->queue()->schedule_single( self::HOOK_RETEST, time() + 2 * self::RETEST_DELAY, array() );
+			// Different args: the running action would otherwise block a "unique" reschedule.
+			$this->plugin->queue()->schedule_single( self::HOOK_RETEST, time() + 2 * self::RETEST_DELAY, array( 'later' ) );
 			return;
 		}
 		delete_option( self::RETEST_OPTION );
