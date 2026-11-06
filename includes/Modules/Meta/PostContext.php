@@ -223,7 +223,8 @@ final class PostContext {
 	 *
 	 * @param WP_Post $post Post.
 	 * @return array<int, array<string, mixed>> Each: attachment_id (int, 0 when unknown), src, filename, alt (as in
-	 *         the content), attachment_alt (media library), caption, heading, featured (bool).
+	 *         the content), attachment_alt (media library), caption, heading, featured (bool), inline (bool: the
+	 *         image appears in the post content, so its alt text lives in the content).
 	 */
 	public function images( WP_Post $post ): array {
 		$html = (string) $post->post_content;
@@ -309,6 +310,7 @@ final class PostContext {
 				'caption'        => self::cut( self::plain( (string) wp_get_attachment_caption( $id ) ), 300 ),
 				'heading'        => '',
 				'featured'       => $featured,
+				'inline'         => false,
 			);
 		}
 
@@ -582,6 +584,7 @@ final class PostContext {
 			'caption'        => '',
 			'heading'        => $heading,
 			'featured'       => false,
+			'inline'         => true,
 		);
 	}
 

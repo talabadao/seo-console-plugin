@@ -137,7 +137,7 @@ PROMPT;
 			$lines[] = sprintf( '%d. attachment_id: %d', $i + 1, (int) $image['attachment_id'] );
 			$lines[] = '   src: ' . $image['src'];
 			$lines[] = '   file name: ' . $image['filename'];
-			$lines[] = '   current alt: ' . self::or_none( '' !== $image['attachment_alt'] ? $image['attachment_alt'] : $image['alt'] );
+			$lines[] = '   current alt: ' . self::or_none( ! empty( $image['inline'] ) ? $image['alt'] : $image['attachment_alt'] );
 			if ( '' !== $image['caption'] ) {
 				$lines[] = '   caption: ' . $image['caption'];
 			}
@@ -278,9 +278,16 @@ PROMPT;
 		$lines[] = '' !== $seo['focus_keyword']
 			? 'Focus keyword: the "Focus keyword" value in the page_data block. Use it naturally; front-load it in the title when natural.'
 			: 'No focus keyword is set: infer the main search intent from the content.';
-		$lines[] = $seo['brand_appended']
-			? 'The SEO plugin appends the brand to every title automatically: do NOT include the brand or site name in the title.'
-			: 'The SEO plugin does not append the brand: you may end the title with the site name only if it fits within 60 characters.';
+		if ( $seo['brand_appended'] ) {
+			$lines[] = 'The SEO plugin appends the brand to every title automatically: do NOT include the brand or site name in the title.';
+			if ( '' !== $seo['brand'] ) {
+				// The plugin adds " - Brand": leave room for it within the 60 visible characters.
+				$room    = max( 30, 60 - PostContext::len( $seo['brand'] ) - 3 );
+				$lines[] = sprintf( 'Because of that suffix, keep your title at most %d characters.', $room );
+			}
+		} else {
+			$lines[] = 'The SEO plugin does not append the brand: you may end the title with the site name only if it fits within 60 characters.';
+		}
 		return $lines;
 	}
 

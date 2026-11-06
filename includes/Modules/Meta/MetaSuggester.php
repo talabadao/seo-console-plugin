@@ -321,9 +321,10 @@ final class MetaSuggester {
 		$code = (string) $error->get_error_code();
 		switch ( $code ) {
 			case 'seoc_ai_not_available':
-			case 'seoc_ai_not_configured':
-			case 'seoc_ai_no_key':
 				$message = __( 'AI is not set up or this month\'s AI budget is used up. Check the Claude API key and budget in SEO Console → Settings.', 'seo-console' );
+				return self::mapped( $code, $message, false, true );
+			case 'seoc_ai_no_key':
+				$message = __( 'Add your Claude API key in SEO Console → Settings.', 'seo-console' );
 				return self::mapped( $code, $message, false, true );
 			case 'seoc_ai_budget':
 				$message = __( 'This month\'s AI budget is used up. Raise it in SEO Console → Settings, or wait until next month.', 'seo-console' );
@@ -340,13 +341,13 @@ final class MetaSuggester {
 				$message = __( 'Claude declined to write a proposal for this content. You can write it yourself.', 'seo-console' );
 				return self::mapped( $code, $message, false, false );
 			case 'seoc_ai_truncated':
-			case 'seoc_ai_max_tokens':
 				$message = __( 'The AI answer was cut off before it was complete. Try again; very long content can cause this.', 'seo-console' );
 				return self::mapped( $code, $message, true, false );
 			case 'seoc_ai_request':
 				$message = __( 'Claude could not process this request. Try again later or write the text yourself.', 'seo-console' );
 				return self::mapped( $code, $message, false, false );
 			case 'seoc_ai_invalid_json':
+			case 'seoc_ai_invalid_response':
 			case 'seoc_ai_invalid':
 				$message = __( 'The AI answer did not have the expected format. Try again.', 'seo-console' );
 				return self::mapped( $code, $message, true, false );
@@ -434,7 +435,8 @@ final class MetaSuggester {
 				);
 				continue;
 			}
-			if ( 'all' !== $this->options['image_scope'] && ! PostContext::is_weak_alt( $image['attachment_alt'], $image['filename'] ) ) {
+			$image['current_alt'] = $image['inline'] ? $image['alt'] : $image['attachment_alt'];
+			if ( 'all' !== $this->options['image_scope'] && ! PostContext::is_weak_alt( $image['current_alt'], $image['filename'] ) ) {
 				continue;
 			}
 			$targets[ (int) $image['attachment_id'] ] = $image;
@@ -495,23 +497,38 @@ final class MetaSuggester {
 				'alt',
 				$alt,
 				array(
-					'current'  => $image['attachment_alt'],
+					'current'  => $image['current_alt'],
 					'language' => $context['language'],
 				)
 			);
+			// Images in the content: the alt text lives in the post (applier post_image_alt). Images only used as
+			// featured image or in a product gallery: the media-library alt (core applier image_alt).
+			$target = $image['inline']
+				? array(
+					'type'        => 'post_image_alt',
+					'object_type' => 'post',
+					'object_id'   => (int) $context['post_id'],
+					'field'       => 'image_alt:' . $id,
+				)
+				: array(
+					'type'        => 'image_alt',
+					'object_type' => 'attachment',
+					'object_id'   => $id,
+					'field'       => 'alt',
+				);
 			if ( is_wp_error( $check['valid'] ) ) {
-				$result['rejected'][] = self::rejection( 'alt', 'attachment', $id, $check['valid'], $check['value'] );
+				$result['rejected'][] = self::rejection( $target['field'], $target['object_type'], $target['object_id'], $check['valid'], $check['value'] );
 				continue;
 			}
 			$result = $this->emit(
 				$result,
 				array(
 					'module'         => 'meta',
-					'type'           => 'image_alt',
-					'object_type'    => 'attachment',
-					'object_id'      => $id,
-					'field'          => 'alt',
-					'current_value'  => $image['attachment_alt'],
+					'type'           => $target['type'],
+					'object_type'    => $target['object_type'],
+					'object_id'      => $target['object_id'],
+					'field'          => $target['field'],
+					'current_value'  => $image['current_alt'],
 					'proposed_value' => $check['value'],
 					'rationale'      => self::clean_rationale( isset( $entry['rationale'] ) ? $entry['rationale'] : '' ),
 					'source'         => 'ai',
