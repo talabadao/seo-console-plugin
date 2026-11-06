@@ -128,6 +128,14 @@ class SitemapAnalyzerTest extends WP_UnitTestCase {
 		$this->assertCount( 2, $urls );
 	}
 
+	public function test_non_http_declared_sitemaps_are_ignored(): void {
+		$http  = ( new MockHttp() )->install();
+		$state = $this->sitemaps->initial_state( array( 'javascript:alert(1)', '/relative.xml' ) );
+		$this->assertSame( array( 'probe', 'probe', 'probe' ), array_column( $state['queue'], 'kind' ) );
+		$this->assertSame( array( 'javascript:alert(1)', '/relative.xml' ), $state['invalid'] );
+		$this->assertSame( array(), $http->requests );
+	}
+
 	public function test_nothing_found(): void {
 		( new MockHttp() )->install();
 		$urls  = array();
