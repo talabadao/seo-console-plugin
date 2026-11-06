@@ -72,6 +72,13 @@ class CacheConfigAudit {
 	private $env;
 
 	/**
+	 * Memoised findings by id.
+	 *
+	 * @var array|null
+	 */
+	private $findings;
+
+	/**
 	 * Memoised feature states.
 	 *
 	 * @var array|null
@@ -98,6 +105,37 @@ class CacheConfigAudit {
 	 */
 	public static function supports( string $plugin_id ): bool {
 		return isset( self::PLUGINS[ $plugin_id ] );
+	}
+
+	/**
+	 * Plugin id this audit reads.
+	 *
+	 * @return string
+	 */
+	public function plugin(): string {
+		return $this->plugin;
+	}
+
+	/**
+	 * Human name of the plugin.
+	 *
+	 * @return string
+	 */
+	public function plugin_name(): string {
+		return isset( self::PLUGINS[ $this->plugin ] ) ? self::PLUGINS[ $this->plugin ] : $this->plugin;
+	}
+
+	/**
+	 * One finding by check id (null when the plugin does not offer it).
+	 *
+	 * @param string $id Check id.
+	 * @return array|null
+	 */
+	public function finding( string $id ) {
+		if ( null === $this->findings ) {
+			$this->findings = array_column( $this->audit(), null, 'id' );
+		}
+		return isset( $this->findings[ $id ] ) ? $this->findings[ $id ] : null;
 	}
 
 	/**
