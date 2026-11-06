@@ -22,6 +22,7 @@ import {
  * @param {string}   props.constant    wp-config.php constant that overrides it.
  * @param {string}   props.placeholder Input placeholder.
  * @param {Object}   props.secret      { has, masked, source }.
+ * @param {Object}   props.previous    Current normalised settings (kept for sections the response omits).
  * @param {Function} props.onSaved     Called with the normalised settings after save/delete.
  * @param {Function} props.onTest      Optional async ( typedKey ) => { ok, message } connection test.
  * @return {JSX.Element} Card.
@@ -33,6 +34,7 @@ export default function KeyField( {
 	constant,
 	placeholder,
 	secret,
+	previous,
 	onSaved,
 	onTest,
 } ) {
@@ -47,9 +49,10 @@ export default function KeyField( {
 		setBusy( true );
 		setResult( null );
 		try {
-			const settings = await saveSettings( {
-				secrets: { [ name ]: newValue },
-			} );
+			const settings = await saveSettings(
+				{ secrets: { [ name ]: newValue } },
+				previous
+			);
 			setValue( '' );
 			setResult( {
 				ok: true,

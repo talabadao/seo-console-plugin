@@ -409,11 +409,36 @@ export async function getSettings( signal ) {
 }
 
 /**
- * @param {Object} patch Partial body: { general?, modules?, secrets? }.
+ * Save settings. If the response leaves out a section (e.g. `secrets` or `ai_usage`), the matching part
+ * of `previous` is kept instead of being reset to "not set".
+ *
+ * @param {Object} patch    Partial body: { general?, modules?, secrets? }.
+ * @param {Object} previous Normalised settings before the save (optional).
  * @return {Promise<Object>} Normalised settings after save.
  */
-export async function saveSettings( patch ) {
-	return normaliseSettings( await apiPost( 'settings', patch ) );
+export async function saveSettings( patch, previous = null ) {
+	const raw = ( await apiPost( 'settings', patch ) ) || {};
+	const next = normaliseSettings( raw );
+	if ( ! previous ) {
+		return next;
+	}
+	const modules = { ...next.modules };
+	Object.keys( modules ).forEach( ( id ) => {
+		const before = previous.modules[ id ];
+		if ( before && modules[ id ].title === id ) {
+			modules[ id ] = {
+				...modules[ id ],
+				title: before.title,
+				description: modules[ id ].description || before.description,
+			};
+		}
+	} );
+	return {
+		general: raw.general ? next.general : previous.general,
+		modules: raw.modules ? modules : previous.modules,
+		secrets: raw.secrets ? next.secrets : previous.secrets,
+		aiUsage: raw.ai_usage || raw.aiUsage ? next.aiUsage : previous.aiUsage,
+	};
 }
 
 export async function testAi( body = {} ) {

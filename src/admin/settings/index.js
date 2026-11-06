@@ -300,6 +300,7 @@ function KeysTab( { settings, draft, onSaved } ) {
 				constant="SEOC_CLAUDE_API_KEY"
 				placeholder="sk-ant-…"
 				secret={ settings.secrets.claude_api_key }
+				previous={ settings }
 				onSaved={ onSaved }
 				onTest={ async ( typed ) => {
 					try {
@@ -339,6 +340,7 @@ function KeysTab( { settings, draft, onSaved } ) {
 				constant="SEOC_GOOGLE_API_KEY"
 				placeholder="AIza…"
 				secret={ settings.secrets.google_api_key }
+				previous={ settings }
 				onSaved={ onSaved }
 			/>
 		</div>
@@ -396,10 +398,10 @@ function App() {
 			Object.keys( draft.modules ).forEach( ( id ) => {
 				modules[ id ] = { enabled: draft.modules[ id ] };
 			} );
-			const next = await saveSettings( {
-				general: draft.general,
-				modules,
-			} );
+			const next = await saveSettings(
+				{ general: draft.general, modules },
+				settings
+			);
 			applySaved( next );
 			setDraft( draftFrom( next ) );
 			addNotice(

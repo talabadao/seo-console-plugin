@@ -7,6 +7,7 @@
     "build": "wp-scripts build",
     "start": "wp-scripts start",
     "lint:js": "wp-scripts lint-js src",
+    "test:js": "wp-scripts test-unit-js tests/js",
     "test:e2e": "playwright test --trace off"
   },
   "devDependencies": {
