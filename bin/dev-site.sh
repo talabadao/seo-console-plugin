@@ -8,6 +8,7 @@ case "$cmd" in
   up)
     docker compose up -d db wordpress
     for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:8080/ && break; sleep 2; done
+    for i in $(seq 1 60); do docker compose run --rm cli db check >/dev/null 2>&1 && break; sleep 2; done
     if ! docker compose run --rm cli core is-installed >/dev/null 2>&1; then
       docker compose run --rm cli core install --url=http://localhost:8080 --title="SEO Console Dev" \
         --admin_user=admin --admin_password=admin --admin_email=admin@example.org --skip-email
