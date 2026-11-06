@@ -23,10 +23,9 @@ class PluginAdminTest extends CoreTestCase {
 	public function set_up(): void {
 		parent::set_up();
 		FakeModule::$calls = array();
-		$builtin = static function ( $classes ) {
-			$classes[] = FakeModule::class;
-			$classes[] = 'SEOConsole\\Modules\\DoesNot\\ExistModule';
-			return $classes;
+		$builtin = static function () {
+			// Only the fake modules: real built-in modules (speed, audit…) would change page lists and tables.
+			return array( FakeModule::class, 'SEOConsole\\Modules\\DoesNot\\ExistModule' );
 		};
 		$extra   = static function ( $modules ) {
 			$second                     = new FakeModule();
