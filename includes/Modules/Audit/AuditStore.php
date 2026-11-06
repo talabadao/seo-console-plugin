@@ -103,6 +103,7 @@ class AuditStore {
   status varchar(20) NOT NULL DEFAULT \'queued\',
   phase varchar(20) NOT NULL DEFAULT \'seed\',
   created_at datetime NOT NULL,
+  updated_at datetime NULL DEFAULT NULL,
   started_at datetime NULL DEFAULT NULL,
   finished_at datetime NULL DEFAULT NULL,
   pages_found int(10) unsigned NOT NULL DEFAULT 0,
@@ -172,6 +173,7 @@ class AuditStore {
   nofollow tinyint(1) NOT NULL DEFAULT 0,
   is_internal tinyint(1) NOT NULL DEFAULT 0,
   in_nav tinyint(1) NOT NULL DEFAULT 0,
+  slash_mismatch tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY  (id),
   KEY run_to (run_id,to_url_hash),
   KEY run_from (run_id,from_page_id)
@@ -267,11 +269,12 @@ class AuditStore {
 				'status'     => 'queued',
 				'phase'      => 'seed',
 				'created_at' => self::now(),
+				'updated_at' => self::now(),
 				'settings'   => self::json( $settings ),
 				'state'      => self::json( new \stdClass() ),
 				'summary'    => self::json( new \stdClass() ),
 			),
-			array( '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 		return $ok ? (int) $wpdb->insert_id : 0;
 	}
@@ -303,6 +306,7 @@ class AuditStore {
 			}
 		}
 		if ( $data ) {
+			$data['updated_at'] = self::now();
 			$wpdb->update( $this->table( 'runs' ), $data, array( 'id' => $run_id ) );
 		}
 	}
@@ -312,16 +316,45 @@ class AuditStore {
 	 *
 	 * @param int    $limit  Max rows.
 	 * @param string $status Optional status filter.
+	 * @param int    $offset Rows to skip.
 	 * @return array[]
 	 */
-	public function list_runs( int $limit = 20, string $status = '' ): array {
+	public function list_runs( int $limit = 20, string $status = '', int $offset = 0 ): array {
 		global $wpdb;
 		if ( '' !== $status ) {
-			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, status, phase, created_at, started_at, finished_at, pages_found, pages_crawled, score, error FROM %i WHERE status = %s ORDER BY id DESC LIMIT %d', $this->table( 'runs' ), $status, $limit ), ARRAY_A );
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, status, phase, created_at, updated_at, started_at, finished_at, pages_found, pages_crawled, score, error, summary FROM %i WHERE status = %s ORDER BY id DESC LIMIT %d OFFSET %d', $this->table( 'runs' ), $status, $limit, $offset ), ARRAY_A );
 		} else {
-			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, status, phase, created_at, started_at, finished_at, pages_found, pages_crawled, score, error FROM %i ORDER BY id DESC LIMIT %d', $this->table( 'runs' ), $limit ), ARRAY_A );
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, status, phase, created_at, updated_at, started_at, finished_at, pages_found, pages_crawled, score, error, summary FROM %i ORDER BY id DESC LIMIT %d OFFSET %d', $this->table( 'runs' ), $limit, $offset ), ARRAY_A );
 		}
 		return array_map( array( $this, 'cast_run' ), (array) $rows );
+	}
+
+	/**
+	 * Number of runs.
+	 *
+	 * @param string $status Optional status filter.
+	 */
+	public function count_runs( string $status = '' ): int {
+		global $wpdb;
+		if ( '' !== $status ) {
+			return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE status = %s', $this->table( 'runs' ), $status ) );
+		}
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $this->table( 'runs' ) ) );
+	}
+
+	/**
+	 * Id of the newest run with a given status (0 when none).
+	 *
+	 * @param string[] $statuses Statuses.
+	 */
+	public function latest_run_id( array $statuses = array( 'done' ) ): int {
+		global $wpdb;
+		if ( ! $statuses ) {
+			return 0;
+		}
+		$sql = 'SELECT id FROM %i WHERE status IN (' . implode( ', ', array_fill( 0, count( $statuses ), '%s' ) ) . ') ORDER BY id DESC LIMIT 1';
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built above.
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, array_merge( array( $this->table( 'runs' ) ), $statuses ) ) );
 	}
 
 	/**
@@ -377,7 +410,7 @@ class AuditStore {
 		$row             = $this->cast_run( $row );
 		$row['settings'] = self::unjson( $row['settings'] ?? '' );
 		$row['state']    = self::unjson( $row['state'] ?? '' );
-		$row['summary']  = self::unjson( $row['summary'] ?? '' );
+		$row['summary']  = is_array( $row['summary'] ) ? $row['summary'] : array();
 		return $row;
 	}
 
@@ -391,6 +424,9 @@ class AuditStore {
 		$row['pages_found']   = (int) $row['pages_found'];
 		$row['pages_crawled'] = (int) $row['pages_crawled'];
 		$row['score']         = null === $row['score'] ? null : (int) $row['score'];
+		if ( array_key_exists( 'summary', $row ) && is_string( $row['summary'] ) ) {
+			$row['summary'] = self::unjson( $row['summary'] );
+		}
 		return $row;
 	}
 
@@ -625,6 +661,83 @@ class AuditStore {
 	}
 
 	/**
+	 * Filtered, paged page list with issue counts (REST "Pages" table).
+	 *
+	 * @param int   $run_id Run id.
+	 * @param array $args   indexability, status ('2xx'|'3xx'|'4xx'|'5xx'|'error'|code), crawl_state, has_issue (bool|null),
+	 *                      search, orderby (url|status_code|depth|inbound_internal|word_count|issues|response_ms), order
+	 *                      (asc|desc), page, per_page (≤ 100).
+	 * @return array{items: array[], total: int}
+	 */
+	public function query_pages( int $run_id, array $args = array() ): array {
+		global $wpdb;
+		$where  = 'p.run_id = %d';
+		$params = array( $run_id );
+		if ( ! empty( $args['indexability'] ) ) {
+			$where   .= ' AND p.indexability = %s';
+			$params[] = (string) $args['indexability'];
+		}
+		if ( ! empty( $args['crawl_state'] ) ) {
+			$where   .= ' AND p.crawl_state = %s';
+			$params[] = (string) $args['crawl_state'];
+		} else {
+			$where .= " AND p.crawl_state IN ('crawled','blocked','error')";
+		}
+		$status = isset( $args['status'] ) ? (string) $args['status'] : '';
+		if ( preg_match( '/^([1-5])xx$/', $status, $m ) ) {
+			$where   .= ' AND p.status_code BETWEEN %d AND %d';
+			$params[] = (int) $m[1] * 100;
+			$params[] = (int) $m[1] * 100 + 99;
+		} elseif ( 'error' === $status ) {
+			$where .= " AND p.crawl_state = 'error'";
+		} elseif ( ctype_digit( $status ) ) {
+			$where   .= ' AND p.status_code = %d';
+			$params[] = (int) $status;
+		}
+		if ( isset( $args['has_issue'] ) && null !== $args['has_issue'] ) {
+			$where .= $args['has_issue'] ? ' AND ic.n > 0' : ' AND ic.n IS NULL';
+		}
+		if ( ! empty( $args['search'] ) ) {
+			$like     = '%' . $wpdb->esc_like( (string) $args['search'] ) . '%';
+			$where   .= ' AND (p.url LIKE %s OR p.title LIKE %s)';
+			$params[] = $like;
+			$params[] = $like;
+		}
+		$columns  = array(
+			'url'              => 'p.url',
+			'status_code'      => 'p.status_code',
+			'depth'            => 'p.depth',
+			'inbound_internal' => 'p.inbound_internal',
+			'word_count'       => 'p.word_count',
+			'response_ms'      => 'p.response_ms',
+			'issues'           => 'issues',
+		);
+		$orderby  = isset( $args['orderby'], $columns[ $args['orderby'] ] ) ? $columns[ $args['orderby'] ] : 'p.id';
+		$order    = isset( $args['order'] ) && 'desc' === strtolower( (string) $args['order'] ) ? 'DESC' : 'ASC';
+		$per_page = isset( $args['per_page'] ) ? max( 1, min( 100, (int) $args['per_page'] ) ) : 20;
+		$page     = isset( $args['page'] ) ? max( 1, (int) $args['page'] ) : 1;
+		$from     = '%i p LEFT JOIN (SELECT page_id, COUNT(*) AS n FROM %i WHERE run_id = %d AND page_id IS NOT NULL GROUP BY page_id) ic ON ic.page_id = p.id';
+		$tables   = array( $this->table( 'pages' ), $this->table( 'issues' ), $run_id );
+
+		$count_sql = "SELECT COUNT(*) FROM {$from} WHERE {$where}";
+		$list_sql  = "SELECT p.id, p.url, p.crawl_state, p.status_code, p.final_url, p.indexability, p.indexable, p.title, p.word_count, p.depth, p.inbound_internal, p.in_sitemap, p.post_id, p.response_ms, COALESCE(ic.n, 0) AS issues FROM {$from} WHERE {$where} ORDER BY {$orderby} {$order}, p.id ASC LIMIT %d OFFSET %d";
+		// $where/$from hold placeholders only; $orderby/$order come from whitelists.
+		$total = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, array_merge( $tables, $params ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$rows  = $wpdb->get_results( $wpdb->prepare( $list_sql, array_merge( $tables, $params, array( $per_page, ( $page - 1 ) * $per_page ) ) ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+		$items = array();
+		foreach ( (array) $rows as $row ) {
+			$row           = self::cast_page( $row );
+			$row['issues'] = (int) $row['issues'];
+			$items[]       = $row;
+		}
+		return array(
+			'items' => $items,
+			'total' => $total,
+		);
+	}
+
+	/**
 	 * Counts pages by crawl state.
 	 *
 	 * @param int $run_id Run id.
@@ -736,7 +849,7 @@ class AuditStore {
 	 *
 	 * @param int   $run_id  Run id.
 	 * @param int   $page_id Source page id.
-	 * @param array $links   List of [ 'url', 'anchor', 'nofollow', 'internal', 'in_nav' ].
+	 * @param array $links   List of [ 'url', 'anchor', 'nofollow', 'internal', 'in_nav', 'slash_mismatch' ].
 	 */
 	public function replace_links( int $run_id, int $page_id, array $links ): void {
 		global $wpdb;
@@ -746,7 +859,7 @@ class AuditStore {
 			$values = array();
 			$args   = array( $table );
 			foreach ( $chunk as $link ) {
-				$values[] = '(%d, %d, %s, %s, %s, %d, %d, %d)';
+				$values[] = '(%d, %d, %s, %s, %s, %d, %d, %d, %d)';
 				array_push(
 					$args,
 					$run_id,
@@ -756,10 +869,11 @@ class AuditStore {
 					self::truncate( (string) ( $link['anchor'] ?? '' ), 191 ),
 					empty( $link['nofollow'] ) ? 0 : 1,
 					empty( $link['internal'] ) ? 0 : 1,
-					empty( $link['in_nav'] ) ? 0 : 1
+					empty( $link['in_nav'] ) ? 0 : 1,
+					empty( $link['slash_mismatch'] ) ? 0 : 1
 				);
 			}
-			$sql = 'INSERT INTO %i (run_id, from_page_id, to_url_hash, to_url, anchor, nofollow, is_internal, in_nav) VALUES ' . implode( ', ', $values );
+			$sql = 'INSERT INTO %i (run_id, from_page_id, to_url_hash, to_url, anchor, nofollow, is_internal, in_nav, slash_mismatch) VALUES ' . implode( ', ', $values );
 			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built above.
 			$wpdb->query( $wpdb->prepare( $sql, $args ) );
 		}
@@ -798,6 +912,40 @@ class AuditStore {
 		global $wpdb;
 		$hashes = $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT to_url_hash FROM %i WHERE run_id = %d AND is_internal = 1 AND in_nav = 1', $this->table( 'links' ), $run_id ) );
 		return array_fill_keys( array_map( 'strval', $hashes ), true );
+	}
+
+	/**
+	 * Targets of internal links written with the wrong trailing slash (each costs a redirect).
+	 *
+	 * @param int $run_id Run id.
+	 * @return array<string, array{count: int, pages: string[]}> url_hash => linking pages (≤ 10 examples).
+	 */
+	public function slash_mismatch_targets( int $run_id ): array {
+		global $wpdb;
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT DISTINCT l.to_url_hash, p.url FROM %i l INNER JOIN %i p ON p.id = l.from_page_id WHERE l.run_id = %d AND l.slash_mismatch = 1 ORDER BY l.to_url_hash, p.id LIMIT 20000',
+				$this->table( 'links' ),
+				$this->table( 'pages' ),
+				$run_id
+			),
+			ARRAY_A
+		);
+		$out  = array();
+		foreach ( (array) $rows as $row ) {
+			$hash = (string) $row['to_url_hash'];
+			if ( ! isset( $out[ $hash ] ) ) {
+				$out[ $hash ] = array(
+					'count' => 0,
+					'pages' => array(),
+				);
+			}
+			++$out[ $hash ]['count'];
+			if ( count( $out[ $hash ]['pages'] ) < 10 ) {
+				$out[ $hash ]['pages'][] = (string) $row['url'];
+			}
+		}
+		return $out;
 	}
 
 	/**
@@ -888,16 +1036,11 @@ class AuditStore {
 		$per_page = isset( $args['per_page'] ) ? max( 1, min( 5000, (int) $args['per_page'] ) ) : 5000;
 		$page     = isset( $args['page'] ) ? max( 1, (int) $args['page'] ) : 1;
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $where holds placeholders only.
-		$total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM %i i WHERE {$where}", array_merge( array( $this->table( 'issues' ) ), $params ) ) );
-		$rows  = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT i.id, i.page_id, i.url_hash, i.rule_id, i.severity, i.category, i.data, p.url, p.post_id FROM %i i LEFT JOIN %i p ON p.id = i.page_id WHERE {$where} ORDER BY i.id LIMIT %d OFFSET %d",
-				array_merge( array( $this->table( 'issues' ), $this->table( 'pages' ) ), $params, array( $per_page, ( $page - 1 ) * $per_page ) )
-			),
-			ARRAY_A
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+		$count_sql = "SELECT COUNT(*) FROM %i i WHERE {$where}";
+		$list_sql  = "SELECT i.id, i.page_id, i.url_hash, i.rule_id, i.severity, i.category, i.data, p.url, p.post_id FROM %i i LEFT JOIN %i p ON p.id = i.page_id WHERE {$where} ORDER BY i.id LIMIT %d OFFSET %d";
+		// $where holds placeholders only.
+		$total = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, array_merge( array( $this->table( 'issues' ) ), $params ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$rows  = $wpdb->get_results( $wpdb->prepare( $list_sql, array_merge( array( $this->table( 'issues' ), $this->table( 'pages' ) ), $params, array( $per_page, ( $page - 1 ) * $per_page ) ) ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 
 		$items = array();
 		foreach ( (array) $rows as $row ) {

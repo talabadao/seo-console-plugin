@@ -188,6 +188,10 @@ class RulesTest extends WP_UnitTestCase {
 			),
 			'broken_internal_links' => array( array( array(), $link_to( 404 ) ), array( array(), $link_to( 200 ) ) ),
 			'links_to_redirect'     => array( array( array(), $link_to( 301 ) ), array( array(), $link_to( 200 ) ) ),
+			'link_slash_mismatch'   => array(
+				array( array(), array( 'slash_mismatch' => array( AuditStore::hash( self::URL ) => array( 'count' => 2, 'pages' => array( 'http://example.org/', 'http://example.org/a/' ) ) ) ) ),
+				array( array(), array( 'slash_mismatch' => array( AuditStore::hash( 'http://example.org/other/' ) => array( 'count' => 1, 'pages' => array() ) ) ) ),
+			),
 			'orphan_page'           => array( array( array( 'inbound_internal' => 0 ) ), array( array( 'inbound_internal' => 0, 'in_sitemap' => 0 ) ) ),
 			'too_many_links'        => array( array( array( 'internal_links_out' => 290, 'external_links_out' => 20 ) ), array( array( 'internal_links_out' => 290, 'external_links_out' => 10 ) ) ),
 			'deep_page'             => array( array( array( 'depth' => 5 ) ), array( array( 'depth' => 4 ) ) ),

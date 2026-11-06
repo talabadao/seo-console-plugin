@@ -199,10 +199,11 @@ class Url {
 	 * Normalises an absolute URL: lower-case scheme/host, default port removed, fragment removed, tracking
 	 * parameters removed, query sorted, trailing slash per permalink structure (internal URLs only).
 	 *
-	 * @param string $url Absolute URL.
+	 * @param string $url             Absolute URL.
+	 * @param bool   $trailing_policy Apply the trailing-slash policy (false: keep the path's slash as written).
 	 * @return string '' when not an http(s) URL.
 	 */
-	public function normalize( string $url ): string {
+	public function normalize( string $url, bool $trailing_policy = true ): string {
 		$url   = trim( $url );
 		$parts = wp_parse_url( $url );
 		if ( ! $parts || empty( $parts['host'] ) || empty( $parts['scheme'] ) ) {
@@ -247,7 +248,7 @@ class Url {
 		}
 
 		$is_internal = $this->host_matches( $host ) && 0 === strpos( rtrim( $path, '/' ) . '/', $this->base_path );
-		if ( $is_internal && null !== $this->trailing_slash && '/' !== $path ) {
+		if ( $trailing_policy && $is_internal && null !== $this->trailing_slash && '/' !== $path ) {
 			$last_segment = substr( $path, (int) strrpos( $path, '/' ) + 1 );
 			$has_ext      = false !== strpos( $last_segment, '.' );
 			if ( $this->trailing_slash && '/' !== substr( $path, -1 ) && ! $has_ext ) {

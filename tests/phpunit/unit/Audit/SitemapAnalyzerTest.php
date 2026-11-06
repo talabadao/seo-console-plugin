@@ -128,6 +128,14 @@ class SitemapAnalyzerTest extends WP_UnitTestCase {
 		$this->assertCount( 2, $urls );
 	}
 
+	public function test_non_http_declared_sitemaps_are_ignored(): void {
+		$http  = ( new MockHttp() )->install();
+		$state = $this->sitemaps->initial_state( array( 'javascript:alert(1)', '/relative.xml' ) );
+		$this->assertSame( array( 'probe', 'probe', 'probe' ), array_column( $state['queue'], 'kind' ) );
+		$this->assertSame( array( 'javascript:alert(1)', '/relative.xml' ), $state['invalid'] );
+		$this->assertSame( array(), $http->requests );
+	}
+
 	public function test_nothing_found(): void {
 		( new MockHttp() )->install();
 		$urls  = array();
@@ -137,17 +145,23 @@ class SitemapAnalyzerTest extends WP_UnitTestCase {
 	}
 
 	public function test_process_stops_at_deadline_and_resumes(): void {
-		( new MockHttp( array( 'http://example.org/page-sitemap.xml' => MockHttp::xml( MockHttp::fixture( 'sitemaps/page-sitemap.xml' ) ) ) ) )->install();
-		$state = $this->sitemaps->initial_state( array( 'http://example.org/page-sitemap.xml' ) );
+		( new MockHttp(
+			array(
+				'http://example.org/page-sitemap.xml' => MockHttp::xml( MockHttp::fixture( 'sitemaps/page-sitemap.xml' ) ),
+				'http://example.org/post-sitemap.xml' => MockHttp::xml( MockHttp::fixture( 'sitemaps/post-sitemap.xml' ) ),
+			)
+		) )->install();
+		$state = $this->sitemaps->initial_state( array( 'http://example.org/page-sitemap.xml', 'http://example.org/post-sitemap.xml' ) );
 		$urls  = array();
 		$noop  = static function ( array $batch ) use ( &$urls ) {
 			$urls = array_merge( $urls, $batch );
 		};
+		// Past the deadline: still one file per call, so tiny budgets make progress.
 		$this->assertFalse( $this->sitemaps->process( $state, $noop, microtime( true ) - 1 ) );
-		$this->assertCount( 0, $urls );
-		$state = json_decode( wp_json_encode( $state ), true ); // State survives a JSON round trip.
-		$this->assertTrue( $this->sitemaps->process( $state, $noop, microtime( true ) + 30 ) );
 		$this->assertCount( 2, $urls );
+		$state = json_decode( wp_json_encode( $state ), true ); // State survives a JSON round trip.
+		$this->assertTrue( $this->sitemaps->process( $state, $noop, microtime( true ) - 1 ) );
+		$this->assertCount( 9, $urls );
 	}
 
 	public function test_valid_lastmod(): void {

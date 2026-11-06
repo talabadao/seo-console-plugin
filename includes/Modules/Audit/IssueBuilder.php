@@ -34,51 +34,89 @@ class IssueBuilder {
 	}
 
 	/**
-	 * Replaces the issues of a run.
+	 * Evaluation context for a run (visited pages, navigation links, trailing-slash links, run-level checks).
 	 *
 	 * @param int    $run_id       Run id.
 	 * @param array  $settings     Run settings (thin_content_words, slow_ms).
 	 * @param array  $run_checks   Run-level check results [ [ 'rule', 'data' ] ].
 	 * @param bool   $have_sitemap A sitemap was found.
 	 * @param string $home         Normalised home URL.
+	 */
+	public function context( int $run_id, array $settings, array $run_checks, bool $have_sitemap, string $home ): RuleContext {
+		return new RuleContext(
+			array_values( $this->store->page_index( $run_id ) ),
+			array(
+				'nav'            => array_keys( $this->store->nav_linked_hashes( $run_id ) ),
+				'slash_mismatch' => $this->store->slash_mismatch_targets( $run_id ),
+				'settings'       => $settings,
+				'run_checks'     => $run_checks,
+				'have_sitemap'   => $have_sitemap,
+				'home'           => $home,
+			)
+		);
+	}
+
+	/**
+	 * Starts (re-)evaluation: deletes the run's issues and stores the run-level ones.
+	 *
+	 * @param int         $run_id Run id.
+	 * @param RuleContext $ctx    Context.
+	 * @return int Issues stored.
+	 */
+	public function begin( int $run_id, RuleContext $ctx ): int {
+		$this->store->delete_issues( $run_id );
+		$issues = self::evaluate_run( $ctx );
+		$this->store->insert_issues( $run_id, $issues );
+		return count( $issues );
+	}
+
+	/**
+	 * Evaluates the next chunk of visited pages.
+	 *
+	 * @param int         $run_id Run id.
+	 * @param RuleContext $ctx    Context.
+	 * @param int         $after  Last evaluated page id (0 to start).
+	 * @param int         $size   Pages per chunk.
+	 * @return array{after: int, pages: int, issues: int, done: bool}
+	 */
+	public function chunk( int $run_id, RuleContext $ctx, int $after, int $size = self::CHUNK ): array {
+		$size  = max( 1, $size );
+		$pages = $this->store->pages( $run_id, $after, $size, array( 'crawled', 'blocked', 'error' ) );
+		$ctx->clear_links();
+		$ctx->set_links( $this->store->internal_links_from( $run_id, array_column( $pages, 'id' ) ) );
+		$issues = array();
+		foreach ( $pages as $page ) {
+			$issues = array_merge( $issues, self::evaluate_page( $page, $ctx ) );
+			$after  = (int) $page['id'];
+		}
+		$this->store->insert_issues( $run_id, $issues );
+		return array(
+			'after'  => $after,
+			'pages'  => count( $pages ),
+			'issues' => count( $issues ),
+			'done'   => count( $pages ) < $size,
+		);
+	}
+
+	/**
+	 * Replaces the issues of a run in one go (small runs, tests). Crawler::step() uses begin() + chunk().
+	 *
+	 * @param int    $run_id       Run id.
+	 * @param array  $settings     Run settings.
+	 * @param array  $run_checks   Run-level check results.
+	 * @param bool   $have_sitemap A sitemap was found.
+	 * @param string $home         Normalised home URL.
 	 * @return int Issues stored.
 	 */
 	public function build( int $run_id, array $settings, array $run_checks, bool $have_sitemap, string $home ): int {
-		$this->store->delete_issues( $run_id );
-		$ctx = new RuleContext(
-			array_values( $this->store->page_index( $run_id ) ),
-			array(
-				'nav'          => array_keys( $this->store->nav_linked_hashes( $run_id ) ),
-				'settings'     => $settings,
-				'run_checks'   => $run_checks,
-				'have_sitemap' => $have_sitemap,
-				'home'         => $home,
-			)
-		);
-
-		$total  = 0;
-		$issues = self::evaluate_run( $ctx );
-		$this->store->insert_issues( $run_id, $issues );
-		$total += count( $issues );
-
+		$ctx   = $this->context( $run_id, $settings, $run_checks, $have_sitemap, $home );
+		$total = $this->begin( $run_id, $ctx );
 		$after = 0;
 		do {
-			$pages = $this->store->pages( $run_id, $after, self::CHUNK, array( 'crawled', 'blocked', 'error' ) );
-			if ( ! $pages ) {
-				break;
-			}
-			$more = count( $pages ) === self::CHUNK;
-			$ctx->clear_links();
-			$ctx->set_links( $this->store->internal_links_from( $run_id, array_column( $pages, 'id' ) ) );
-			$issues = array();
-			foreach ( $pages as $page ) {
-				$issues = array_merge( $issues, self::evaluate_page( $page, $ctx ) );
-				$after  = (int) $page['id'];
-			}
-			$this->store->insert_issues( $run_id, $issues );
-			$total += count( $issues );
-		} while ( $more );
-
+			$result = $this->chunk( $run_id, $ctx, $after );
+			$after  = $result['after'];
+			$total += $result['issues'];
+		} while ( ! $result['done'] );
 		return $total;
 	}
 
