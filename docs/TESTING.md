@@ -113,6 +113,10 @@ WP_BASE_URL=http://localhost:8888 npx playwright test   # another site
   external assets), `rest()` (calls the REST API with the logged-in nonce), `wpCli()` (runs `bin/dev-site.sh wp …`;
   override with `SEOC_WP_CLI="…"`).
 - Specs restore what they change (settings, keys, seeded posts).
+- Inside the Docker site, `http://localhost:8080` is not reachable from PHP (Apache listens on 80), so loopback
+  requests (SEO Console's health check, Site Health) would fail and every frontend-affecting approval would be
+  auto-reverted. `dev/mu-plugins/seoc-dev-loopback.php` (only when `WP_ENVIRONMENT_TYPE` is `local`) re-routes them to
+  port 80 with the original `Host` header.
 - If the bundled Playwright browser is missing, the config uses `/opt/pw-browsers/chromium` when it exists, or set
   `PW_CHROMIUM_PATH`.
 
