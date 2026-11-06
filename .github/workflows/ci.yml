@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  phpunit:
+    name: PHPUnit (PHP ${{ matrix.php }}, WP ${{ matrix.wp }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.1', '8.3']
+        wp: ['6.5', 'latest']
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: wordpress_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      SEOC_DB_NAME: wordpress_test
+      SEOC_DB_HOST: 127.0.0.1:3306
+      SEOC_DB_USER: root
+      SEOC_DB_PASSWORD: root
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, sodium, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Pin WordPress ${{ matrix.wp }}
+        if: matrix.wp != 'latest'
+        run: |
+          composer require --dev --no-update --no-interaction \
+            "johnpbloch/wordpress-core:${{ matrix.wp }}.*" "wp-phpunit/wp-phpunit:${{ matrix.wp }}.*"
+          composer update --no-interaction --prefer-dist --with-all-dependencies
+
+      - name: Install dependencies (latest WordPress from composer.lock)
+        if: matrix.wp == 'latest'
+        run: composer install --no-interaction --prefer-dist
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit
+
+      - name: PHPUnit with SEO/cache plugin stubs
+        run: |
+          for stub in rankmath yoast litespeed wp-rocket; do
+            echo "::group::SEOC_TEST_STUB=$stub"
+            SEOC_TEST_STUB=$stub vendor/bin/phpunit
+            echo "::endgroup::"
+          done
+
+  phpcs:
+    name: PHPCS (WordPress Coding Standards + PHP 7.4 compatibility)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/phpcs
+
+  phpstan:
+    name: PHPStan (level 5)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Install dependencies + PHPStan (CI only, not in composer.json)
+        run: |
+          composer install --no-interaction --prefer-dist
+          composer require --dev --no-interaction --prefer-dist --with-all-dependencies \
+            phpstan/phpstan szepeviktor/phpstan-wordpress
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+      # Adopting PHPStan on existing code: when the step above fails, this generates a baseline you can download
+      # (Actions → this run → Artifacts → phpstan-baseline), commit as phpstan-baseline.neon and include from
+      # phpstan.neon.dist ("includes: - phpstan-baseline.neon"). New code must not add to the baseline.
+      - name: Generate PHPStan baseline (on failure)
+        if: failure()
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G --generate-baseline phpstan-baseline.neon || true
+      - name: Upload baseline
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpstan-baseline
+          path: phpstan-baseline.neon
+          if-no-files-found: ignore
+
+  js:
+    name: JS (build, lint, unit tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint:js
+      - run: npx wp-scripts test-unit-js tests/js
+
+  plugin-check:
+    name: Plugin Check (WordPress.org)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Build the release zip and unzip it
+        run: |
+          zip_path="$(bin/make-zip.sh | tail -n 1)"
+          mkdir -p dist/unzipped
+          unzip -q "$zip_path" -d dist/unzipped
+          ls dist/unzipped/seo-console
+      - uses: WordPress/plugin-check-action@v1
+        with:
+          build-dir: './dist/unzipped/seo-console'

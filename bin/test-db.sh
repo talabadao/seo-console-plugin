@@ -2,8 +2,15 @@
 # Starts (or reuses) the throwaway MariaDB used by PHPUnit on 127.0.0.1:3306.
 set -euo pipefail
 if ! docker info >/dev/null 2>&1; then
-  echo "Docker daemon not running. In a cloud session start it with: nohup dockerd >/tmp/dockerd.log 2>&1 &" >&2
-  exit 1
+  # Cloud sessions restart without dockerd: clear a stale pid/socket and start it in the background.
+  echo "Docker daemon not reachable; starting dockerd..." >&2
+  rm -f /var/run/docker.pid /var/run/docker.sock
+  nohup dockerd >/tmp/dockerd.log 2>&1 &
+  for i in $(seq 1 20); do docker info >/dev/null 2>&1 && break; sleep 1; done
+  if ! docker info >/dev/null 2>&1; then
+    echo "dockerd did not start within 20 s; see /tmp/dockerd.log" >&2
+    exit 1
+  fi
 fi
 if [ -z "$(docker ps -q -f name=^seoc-db$)" ]; then
   if [ -n "$(docker ps -aq -f name=^seoc-db$)" ]; then docker start seoc-db >/dev/null;

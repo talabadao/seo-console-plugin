@@ -7,7 +7,7 @@ stage="$(mktemp -d)/seo-console"
 mkdir -p "$stage" "$root/dist"
 cd "$root"
 npm run build >/dev/null
-git ls-files -co --exclude-standard | grep -vE '^(tests|bin|docs|src|dev|\.github|node_modules)/|^(phpunit|phpcs)\.xml\.dist$|^package(-lock)?\.json$|^playwright\.config|^CLAUDE\.md$|^AGENTS\.md$|^\.' | while read -r f; do
+git ls-files -co --exclude-standard | grep -vE '^(tests|bin|docs|src|dev|\.github|node_modules)/|^(phpunit|phpcs)\.xml\.dist$|^phpstan\.neon\.dist$|^package(-lock)?\.json$|^playwright\.config|^CLAUDE\.md$|^AGENTS\.md$|^\.' | while read -r f; do
   [ -f "$f" ] && mkdir -p "$stage/$(dirname "$f")" && cp "$f" "$stage/$f"
 done
 cp -r build "$stage/build"
