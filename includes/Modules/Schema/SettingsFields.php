@@ -125,6 +125,22 @@ final class SettingsFields {
 	}
 
 	/**
+	 * Keys of the business / organization fields (site-wide node).
+	 *
+	 * @return string[]
+	 */
+	public static function business_keys(): array {
+		return array_values(
+			array_filter(
+				array_keys( self::schema() ),
+				static function ( $key ) {
+					return 0 === strpos( $key, 'business_' ) || 0 === strpos( $key, 'address_' ) || 0 === strpos( $key, 'geo_' ) || in_array( $key, array( 'opening_hours', 'same_as', 'price_range' ), true );
+				}
+			)
+		);
+	}
+
+	/**
 	 * Defaults as a flat array (used when core Settings is not available, e.g. tests).
 	 *
 	 * @return array<string, mixed>

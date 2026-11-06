@@ -1,0 +1,70 @@
+// Schema page styles (scoped under .seoc-app).
+.seoc-app {
+	.seoc-schema-badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+
+	.seoc-schema-badge {
+		display: inline-block;
+		padding: 1px 8px;
+		border: 1px solid #c3c4c7;
+		border-radius: 10px;
+		background: #f6f7f7;
+		font-size: 12px;
+		line-height: 18px;
+		white-space: nowrap;
+
+		&--seoc {
+			border-color: #2271b1;
+			background: #f0f6fc;
+		}
+
+		&--pending {
+			border-style: dashed;
+			border-color: #996800;
+			background: #fcf9e8;
+		}
+	}
+
+	.seoc-schema-json {
+		max-height: 420px;
+		overflow: auto;
+		margin: 0;
+		padding: 12px;
+		background: #f6f7f7;
+		border: 1px solid #dcdcde;
+		font-size: 12px;
+		line-height: 1.5;
+		white-space: pre;
+	}
+
+	.seoc-schema-editor textarea {
+		font-family: Menlo, Consolas, monospace;
+		font-size: 12px;
+	}
+
+	.seoc-schema-form {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: 0 16px;
+	}
+
+	.seoc-schema-list {
+		margin: 4px 0 0 18px;
+		list-style: disc;
+	}
+
+	.seoc-schema-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: 12px;
+		margin-bottom: 12px;
+
+		.components-base-control {
+			margin-bottom: 0;
+		}
+	}
+}

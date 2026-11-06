@@ -416,6 +416,23 @@ class ModuleTest extends CoreTestCase {
 		$this->assertFalse( $site['will_output'] );
 		$this->assertStringContainsString( 'Rank Math already describes', $site['reason'] );
 
+		// Live preview of unsaved values: nothing is saved, invalid fields are reported.
+		$live = $this->call(
+			'GET',
+			'/schema/site',
+			array(),
+			array(
+				'business_type'  => 'Store',
+				'business_name'  => 'Shop',
+				'address_street' => '2 Hang Bac',
+				'business_url'   => 'not a url',
+			)
+		)->get_data();
+		$this->assertTrue( $live['will_output'] );
+		$this->assertSame( 'Store', $live['node']['@type'] );
+		$this->assertArrayHasKey( 'business_url', (array) $live['field_errors'] );
+		$this->assertSame( 'Organization', Plugin::instance()->settings()->get( 'schema', 'business_type' ) );
+
 		$types = $this->call( 'GET', '/schema/types' )->get_data()['items'];
 		$faq   = current( wp_list_filter( $types, array( 'type' => 'FAQPage' ) ) );
 		$this->assertSame( 'limited', $faq['rich_result'] );

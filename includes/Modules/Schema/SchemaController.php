@@ -133,6 +133,13 @@ final class SchemaController extends Controller {
 			)
 		);
 
+		$site_args = array();
+		foreach ( SettingsFields::business_keys() as $key ) {
+			$site_args[ $key ] = array(
+				'type'        => 'string',
+				'description' => __( 'Unsaved value to preview (lists: one item per line).', 'seo-console' ),
+			);
+		}
 		register_rest_route(
 			$ns,
 			'/schema/site',
@@ -140,6 +147,7 @@ final class SchemaController extends Controller {
 				'methods'             => 'GET',
 				'callback'            => array( $this, 'site' ),
 				'permission_callback' => $permission,
+				'args'                => $site_args,
 			)
 		);
 
@@ -267,12 +275,29 @@ final class SchemaController extends Controller {
 	}
 
 	/**
-	 * GET /schema/site.
+	 * GET /schema/site: the business node from saved settings, or from unsaved values passed as
+	 * query args (live preview while the form is edited; nothing is saved).
 	 *
+	 * @param WP_REST_Request $request Request.
 	 * @return WP_REST_Response
 	 */
-	public function site() {
-		return $this->respond( $this->service->site() );
+	public function site( WP_REST_Request $request ) {
+		$overrides    = array();
+		$field_errors = array();
+		foreach ( SettingsFields::business_keys() as $key ) {
+			if ( null === $request->get_param( $key ) ) {
+				continue;
+			}
+			$clean = $this->plugin->settings()->validate( 'schema', $key, (string) $request->get_param( $key ) );
+			if ( is_wp_error( $clean ) ) {
+				$field_errors[ $key ] = $clean->get_error_message();
+				continue;
+			}
+			$overrides[ $key ] = $clean;
+		}
+		$site                 = $this->service->site( array() === $overrides ? null : $overrides );
+		$site['field_errors'] = (object) $field_errors;
+		return $this->respond( $site );
 	}
 
 	/**
