@@ -44,10 +44,11 @@ class HealthCheckTest extends CoreTestCase {
 		$this->assertFalse( ( new HealthCheck() )->run()['ok'] );
 	}
 
-	public function test_network_error_fails_unless_loopback_known_blocked(): void {
+	public function test_timeout_fails_only_when_loopback_worked_before(): void {
 		$this->http_handler = static function () {
 			return new WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out after 15001 milliseconds' );
 		};
+		update_option( HealthCheck::LOOPBACK_OPTION, 'yes' );
 		$this->assertFalse( ( new HealthCheck() )->run()['ok'] );
 
 		update_option( HealthCheck::LOOPBACK_OPTION, 'no' );
@@ -55,6 +56,22 @@ class HealthCheckTest extends CoreTestCase {
 		$this->assertTrue( $result['ok'] );
 		$this->assertTrue( $result['inconclusive'] );
 		$this->assertSame( 'inconclusive', $result['checks'][0]['status'] );
+	}
+
+	public function test_blocked_loopback_is_inconclusive_and_remembered(): void {
+		delete_option( HealthCheck::LOOPBACK_OPTION );
+		$this->http_handler = static function () {
+			return new WP_Error( 'http_request_failed', 'cURL error 7: Failed to connect to example.org port 80: Connection refused' );
+		};
+		$result = ( new HealthCheck() )->run();
+		$this->assertTrue( $result['ok'] );
+		$this->assertTrue( $result['inconclusive'] );
+		$this->assertSame( 'no', get_option( HealthCheck::LOOPBACK_OPTION ) );
+
+		// Even after loopback once worked, a refused connection is the host, not the change.
+		update_option( HealthCheck::LOOPBACK_OPTION, 'yes' );
+		$this->assertTrue( ( new HealthCheck() )->run()['ok'] );
+		$this->assertSame( 'yes', get_option( HealthCheck::LOOPBACK_OPTION ) );
 	}
 
 	public function test_pre_filter_short_circuits(): void {

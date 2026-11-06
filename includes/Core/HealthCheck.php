@@ -119,12 +119,19 @@ final class HealthCheck {
 		);
 
 		if ( is_wp_error( $response ) ) {
+			// A transport error (no HTTP response at all) is only evidence of a broken site when this site's loopback
+			// has worked before and now times out: a fatal error still answers with HTTP 500, and refused connections,
+			// DNS or TLS failures come from the host, not from a meta/setting change. Hosts that block loopback would
+			// otherwise see every approved change undone.
 			$check['error'] = $response->get_error_message();
 			$is_timeout     = false !== stripos( $check['error'], 'timed out' ) || false !== stripos( $check['error'], 'timeout' );
-			if ( $is_timeout && 'no' === get_option( self::LOOPBACK_OPTION ) ) {
-				$check['status'] = 'inconclusive';
-			} else {
+			if ( $is_timeout && 'yes' === get_option( self::LOOPBACK_OPTION ) ) {
 				$check['status'] = 'fail';
+			} else {
+				$check['status'] = 'inconclusive';
+				if ( 'yes' !== get_option( self::LOOPBACK_OPTION ) ) {
+					update_option( self::LOOPBACK_OPTION, 'no', false );
+				}
 			}
 			return $check;
 		}

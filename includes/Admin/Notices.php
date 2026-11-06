@@ -74,6 +74,13 @@ final class Notices {
 			}
 		}
 
+		if ( $ours && 'no' === get_option( \SEOConsole\Core\HealthCheck::LOOPBACK_OPTION ) ) {
+			$notices[] = array(
+				'warning',
+				esc_html__( 'Your hosting blocks this site from loading its own pages, so SEO Console cannot check your site automatically after a change. Changes are still applied and can be undone in the Change log; please open your site after approving changes that affect public pages. Your host can allow "loopback requests" to fix this.', 'seo-console' ),
+			);
+		}
+
 		if ( $ours && $this->plugin->safe_mode() ) {
 			$notices[] = array(
 				'info',
