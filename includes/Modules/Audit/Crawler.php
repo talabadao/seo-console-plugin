@@ -342,21 +342,22 @@ class Crawler {
 		$this->found = array_sum( $this->store->count_pages_by_state( $run_id ) );
 
 		$requests = 0;
-		$avg      = 0.5;
+		$avg      = 0.2;
 		$phase    = 'crawl';
 		while ( true ) {
 			if ( $crawled >= $settings['max_pages'] ) {
 				$phase = 'finalize';
 				break;
 			}
-			$batch = $this->store->next_queued( $run_id, 10 );
+			$batch = $this->store->next_queued( $run_id, 1 ); // One at a time: newly found links can be shallower.
 			if ( ! $batch ) {
 				$phase = 'finalize';
 				break;
 			}
 			foreach ( $batch as $row ) {
-				$remaining = $deadline - microtime( true );
-				if ( $requests >= $settings['max_per_step'] || $remaining < min( 2.0, max( 0.05, $avg * 1.5 ) ) || $crawled >= $settings['max_pages'] ) {
+				$remaining   = $deadline - microtime( true );
+				$out_of_time = $requests > 0 && $remaining < min( 2.0, max( 0.05, $avg * 1.5 ) ); // At least one page per step.
+				if ( $requests >= $settings['max_per_step'] || $out_of_time || $crawled >= $settings['max_pages'] ) {
 					break 2;
 				}
 				if ( $requests > 0 && $delay > 0 ) {

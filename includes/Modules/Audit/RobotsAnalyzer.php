@@ -210,7 +210,7 @@ class RobotsAnalyzer {
 	 * @param string[]|null $important_urls URLs that must be crawlable (computed when null).
 	 * @param string[]|null $asset_urls     Asset URLs (computed when null).
 	 * @return array {
-	 *     @type string    $manager  file|rankmath|yoast|WordPress.
+	 *     @type string    $manager  file|rankmath|yoast|core.
 	 *     @type string    $source   http|virtual|file.
 	 *     @type int       $status   HTTP status.
 	 *     @type bool      $exists   A robots.txt was served.
