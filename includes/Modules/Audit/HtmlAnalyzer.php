@@ -582,7 +582,11 @@ class HtmlAnalyzer {
 				$node->parentNode->removeChild( $node );
 			}
 		}
-		return self::squash( $root->textContent );
+		$parts = array();
+		foreach ( $xpath->query( './/text()', $root ) as $text ) {
+			$parts[] = $text->nodeValue;
+		}
+		return self::squash( implode( ' ', $parts ) );
 	}
 
 	/**

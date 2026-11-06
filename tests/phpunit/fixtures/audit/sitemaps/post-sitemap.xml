@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url><loc>http://example.org/seoc-post/</loc><lastmod>2026-10-01</lastmod></url>
+  <url><loc>http://example.org/seoc-thin/</loc><lastmod>2026-10-01T08:00:00Z</lastmod></url>
+  <url><loc>http://example.org/orphan/</loc></url>
+  <url><loc>http://example.org/noindex-page/</loc></url>
+  <url><loc>http://example.org/old-page/</loc></url>
+  <url><loc>http://example.org/missing/</loc></url>
+  <url><loc>http://example.org/private/listed/</loc></url>
+</urlset>

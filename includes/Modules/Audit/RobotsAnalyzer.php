@@ -95,7 +95,7 @@ class RobotsAnalyzer {
 	}
 
 	/**
-	 * Who manages robots.txt: 'file' (physical file), 'rankmath', 'yoast' or 'WordPress' (virtual default).
+	 * Who manages robots.txt: 'file' (physical file), 'rankmath', 'yoast' or 'core' (WordPress virtual default).
 	 */
 	public static function manager(): string {
 		if ( '' !== self::physical_file() ) {
@@ -107,7 +107,7 @@ class RobotsAnalyzer {
 		if ( defined( 'WPSEO_VERSION' ) ) {
 			return 'yoast';
 		}
-		return 'WordPress';
+		return 'core';
 	}
 
 	/**

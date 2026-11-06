@@ -274,7 +274,7 @@ class RobotsTxt {
 	 * Matches a rule pattern (with * and a trailing $) against an encoded path.
 	 *
 	 * @param string $pattern Rule value.
-	 * @param string $path    Encoded path + query.
+	 * @param string $path    Path + query.
 	 */
 	public static function pattern_matches( string $pattern, string $path ): bool {
 		$pattern = self::encode( $pattern );
@@ -292,7 +292,7 @@ class RobotsTxt {
 		foreach ( explode( '*', $pattern ) as $i => $piece ) {
 			$regex .= ( $i > 0 ? '.*' : '' ) . preg_quote( $piece, '#' );
 		}
-		return 1 === preg_match( '#^' . $regex . ( $anchored ? '$' : '' ) . '#s', $path );
+		return 1 === preg_match( '#^' . $regex . ( $anchored ? '$' : '' ) . '#s', self::encode( $path ) );
 	}
 
 	/**
