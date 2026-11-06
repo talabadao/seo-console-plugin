@@ -356,7 +356,11 @@ function LabTable( { overview } ) {
 														status={ scoreStatus(
 															r.score
 														) }
-														label={ `${ r.score } / 100` }
+														label={
+															r.score === null
+																? '—'
+																: `${ r.score } / 100`
+														}
 													/>
 												) : (
 													<span className="seoc-muted">
