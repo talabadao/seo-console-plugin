@@ -91,7 +91,7 @@ final class SuggestionBuilder {
 	 * @return array{suggestion: array|null, added: array[], skipped: array[], incomplete: array[], rejected: array[], ai_error: \WP_Error|null}
 	 */
 	public function for_post( \WP_Post $post, array $opts = array() ): array {
-		$result = array(
+		$result   = array(
 			'suggestion' => null,
 			'added'      => array(),
 			'skipped'    => array(),
@@ -231,7 +231,7 @@ final class SuggestionBuilder {
 				$line .= ' ' . __( '(Suggested by AI; please check every value against the page.)', 'seo-console' );
 			}
 			if ( ! isset( $noted[ $type ] ) ) {
-				$line         .= ' ' . Types::note( $type );
+				$line          .= ' ' . Types::note( $type );
 				$noted[ $type ] = true;
 			}
 			$lines[] = trim( $line );
