@@ -1,0 +1,129 @@
+{
+  "captchaResult": "CAPTCHA_NOT_NEEDED",
+  "kind": "pagespeedonline#result",
+  "id": "https://example.org/",
+  "loadingExperience": {
+    "id": "https://example.org/",
+    "metrics": {
+      "CUMULATIVE_LAYOUT_SHIFT_SCORE": { "percentile": 12, "distributions": [ { "min": 0, "max": 10, "proportion": 0.71 }, { "min": 10, "max": 25, "proportion": 0.2 }, { "min": 25, "proportion": 0.09 } ], "category": "AVERAGE" },
+      "EXPERIMENTAL_TIME_TO_FIRST_BYTE": { "percentile": 1450, "distributions": [ { "min": 0, "max": 800, "proportion": 0.41 }, { "min": 800, "max": 1800, "proportion": 0.4 }, { "min": 1800, "proportion": 0.19 } ], "category": "AVERAGE" },
+      "FIRST_CONTENTFUL_PAINT_MS": { "percentile": 2400, "distributions": [ { "min": 0, "max": 1800, "proportion": 0.55 }, { "min": 1800, "max": 3000, "proportion": 0.3 }, { "min": 3000, "proportion": 0.15 } ], "category": "AVERAGE" },
+      "INTERACTION_TO_NEXT_PAINT": { "percentile": 180, "distributions": [ { "min": 0, "max": 200, "proportion": 0.78 }, { "min": 200, "max": 500, "proportion": 0.16 }, { "min": 500, "proportion": 0.06 } ], "category": "FAST" },
+      "LARGEST_CONTENTFUL_PAINT_MS": { "percentile": 4300, "distributions": [ { "min": 0, "max": 2500, "proportion": 0.48 }, { "min": 2500, "max": 4000, "proportion": 0.25 }, { "min": 4000, "proportion": 0.27 } ], "category": "SLOW" }
+    },
+    "overall_category": "SLOW",
+    "initial_url": "https://example.org/"
+  },
+  "originLoadingExperience": {
+    "id": "https://example.org",
+    "metrics": {
+      "CUMULATIVE_LAYOUT_SHIFT_SCORE": { "percentile": 4, "distributions": [ { "min": 0, "max": 10, "proportion": 0.88 }, { "min": 10, "max": 25, "proportion": 0.08 }, { "min": 25, "proportion": 0.04 } ], "category": "FAST" },
+      "EXPERIMENTAL_TIME_TO_FIRST_BYTE": { "percentile": 1200, "distributions": [ { "min": 0, "max": 800, "proportion": 0.5 }, { "min": 800, "max": 1800, "proportion": 0.36 }, { "min": 1800, "proportion": 0.14 } ], "category": "AVERAGE" },
+      "FIRST_CONTENTFUL_PAINT_MS": { "percentile": 2100, "distributions": [ { "min": 0, "max": 1800, "proportion": 0.62 }, { "min": 1800, "max": 3000, "proportion": 0.27 }, { "min": 3000, "proportion": 0.11 } ], "category": "AVERAGE" },
+      "INTERACTION_TO_NEXT_PAINT": { "percentile": 210, "distributions": [ { "min": 0, "max": 200, "proportion": 0.74 }, { "min": 200, "max": 500, "proportion": 0.19 }, { "min": 500, "proportion": 0.07 } ], "category": "AVERAGE" },
+      "LARGEST_CONTENTFUL_PAINT_MS": { "percentile": 3100, "distributions": [ { "min": 0, "max": 2500, "proportion": 0.66 }, { "min": 2500, "max": 4000, "proportion": 0.2 }, { "min": 4000, "proportion": 0.14 } ], "category": "AVERAGE" }
+    },
+    "overall_category": "AVERAGE",
+    "initial_url": "https://example.org/"
+  },
+  "lighthouseResult": {
+    "requestedUrl": "https://example.org/",
+    "finalUrl": "https://example.org/",
+    "finalDisplayedUrl": "https://example.org/",
+    "lighthouseVersion": "12.6.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/137.0.0.0 Safari/537.36",
+    "fetchTime": "2026-11-05T02:31:12.004Z",
+    "runWarnings": [ "The page loaded too slowly to finish within the time limit. Results may be incomplete." ],
+    "configSettings": { "emulatedFormFactor": "mobile", "formFactor": "mobile", "locale": "en-US", "onlyCategories": [ "performance" ], "channel": "lr" },
+    "audits": {
+      "first-contentful-paint": { "id": "first-contentful-paint", "title": "First Contentful Paint", "score": 0.42, "scoreDisplayMode": "numeric", "numericValue": 3050.2, "numericUnit": "millisecond", "displayValue": "3.1 s" },
+      "largest-contentful-paint": { "id": "largest-contentful-paint", "title": "Largest Contentful Paint", "score": 0.08, "scoreDisplayMode": "numeric", "numericValue": 6820.7, "numericUnit": "millisecond", "displayValue": "6.8 s" },
+      "total-blocking-time": { "id": "total-blocking-time", "title": "Total Blocking Time", "score": 0.55, "scoreDisplayMode": "numeric", "numericValue": 480, "numericUnit": "millisecond", "displayValue": "480 ms" },
+      "cumulative-layout-shift": { "id": "cumulative-layout-shift", "title": "Cumulative Layout Shift", "score": 0.81, "scoreDisplayMode": "numeric", "numericValue": 0.126, "numericUnit": "unitless", "displayValue": "0.126" },
+      "speed-index": { "id": "speed-index", "title": "Speed Index", "score": 0.38, "scoreDisplayMode": "numeric", "numericValue": 6110, "numericUnit": "millisecond", "displayValue": "6.1 s" },
+      "interactive": { "id": "interactive", "title": "Time to Interactive", "score": 0.3, "scoreDisplayMode": "numeric", "numericValue": 9300, "numericUnit": "millisecond", "displayValue": "9.3 s" },
+      "server-response-time": {
+        "id": "server-response-time", "title": "Reduce initial server response time", "score": 0, "scoreDisplayMode": "metricSavings", "numericValue": 1240, "numericUnit": "millisecond", "displayValue": "Root document took 1,240 ms",
+        "metricSavings": { "FCP": 1140, "LCP": 1140 },
+        "details": { "type": "opportunity", "headings": [ { "key": "url", "valueType": "url", "label": "URL" }, { "key": "responseTime", "valueType": "timespanMs", "label": "Time Spent" } ], "items": [ { "url": "https://example.org/", "responseTime": 1240 } ], "overallSavingsMs": 1140 }
+      },
+      "largest-contentful-paint-element": {
+        "id": "largest-contentful-paint-element", "title": "Largest Contentful Paint element", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "6,820 ms",
+        "metricSavings": { "LCP": 4320 },
+        "details": { "type": "list", "items": [
+          { "type": "table", "headings": [ { "key": "node", "valueType": "node", "label": "Element" } ], "items": [ { "node": { "type": "node", "lhId": "page-0-IMG", "path": "1,HTML,1,BODY,3,DIV,0,SECTION,0,IMG", "selector": "div.site-content > section.hero > img.hero-image", "boundingRect": { "top": 64, "bottom": 284, "left": 0, "right": 412, "width": 412, "height": 220 }, "snippet": "<img src=\"https://example.org/wp-content/uploads/2026/05/hero-768x410.jpg\" class=\"hero-image wp-post-image\" alt=\"Our team\" loading=\"lazy\" width=\"768\" height=\"410\">", "nodeLabel": "Our team" } } ] },
+          { "type": "table", "headings": [ { "key": "phase", "valueType": "text", "label": "Phase" }, { "key": "percent", "valueType": "text", "label": "% of LCP" }, { "key": "timing", "valueType": "ms", "label": "Timing" } ], "items": [ { "phase": "TTFB", "timing": 1240, "percent": "18%" }, { "phase": "Load Delay", "timing": 2980, "percent": "44%" }, { "phase": "Load Time", "timing": 2250, "percent": "33%" }, { "phase": "Render Delay", "timing": 350.7, "percent": "5%" } ] }
+        ] }
+      },
+      "prioritize-lcp-image": {
+        "id": "prioritize-lcp-image", "title": "Preload Largest Contentful Paint image", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "",
+        "metricSavings": { "LCP": 2980 },
+        "details": { "type": "opportunity", "headings": [ { "key": "node", "valueType": "node", "label": "" }, { "key": "url", "valueType": "url", "label": "URL" }, { "key": "wastedMs", "valueType": "timespanMs", "label": "Potential Savings" } ], "items": [ { "node": { "type": "node", "selector": "div.site-content > section.hero > img.hero-image", "snippet": "<img src=\"https://example.org/wp-content/uploads/2026/05/hero-768x410.jpg\" class=\"hero-image wp-post-image\">" }, "url": "https://example.org/wp-content/uploads/2026/05/hero-768x410.jpg", "wastedMs": 2980 } ], "overallSavingsMs": 2980 }
+      },
+      "lcp-lazy-loaded": {
+        "id": "lcp-lazy-loaded", "title": "Largest Contentful Paint image was lazily loaded", "score": 0, "scoreDisplayMode": "metricSavings",
+        "metricSavings": { "LCP": 2980 },
+        "details": { "type": "table", "headings": [ { "key": "node", "valueType": "node", "label": "Element" } ], "items": [ { "node": { "type": "node", "selector": "div.site-content > section.hero > img.hero-image", "snippet": "<img src=\"https://example.org/wp-content/uploads/2026/05/hero-768x410.jpg\" loading=\"lazy\">" } } ] }
+      },
+      "render-blocking-resources": {
+        "id": "render-blocking-resources", "title": "Eliminate render-blocking resources", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 1,520 ms",
+        "metricSavings": { "FCP": 1520, "LCP": 1520 },
+        "details": { "type": "opportunity", "headings": [], "items": [
+          { "url": "https://example.org/wp-content/themes/flavor/style.css?ver=2.1", "totalBytes": 61200, "wastedMs": 930 },
+          { "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap", "totalBytes": 1400, "wastedMs": 780 },
+          { "url": "https://example.org/wp-includes/js/jquery/jquery.min.js?ver=3.7.1", "totalBytes": 30800, "wastedMs": 450 },
+          { "url": "https://example.org/wp-content/plugins/elementor/assets/css/frontend.min.css", "totalBytes": 24100, "wastedMs": 300 },
+          { "url": "https://example.org/wp-content/plugins/contact-form-7/includes/css/styles.css", "totalBytes": 2900, "wastedMs": 150 },
+          { "url": "https://example.org/wp-includes/css/dist/block-library/style.min.css", "totalBytes": 15400, "wastedMs": 150 }
+        ], "overallSavingsMs": 1520 }
+      },
+      "unused-css-rules": {
+        "id": "unused-css-rules", "title": "Reduce unused CSS", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 88 KiB",
+        "metricSavings": { "FCP": 600, "LCP": 600 },
+        "details": { "type": "opportunity", "headings": [], "items": [ { "url": "https://example.org/wp-content/themes/flavor/style.css?ver=2.1", "totalBytes": 61200, "wastedBytes": 52000, "wastedPercent": 85 }, { "url": "https://example.org/wp-includes/css/dist/block-library/style.min.css", "totalBytes": 15400, "wastedBytes": 14800, "wastedPercent": 96 } ], "overallSavingsMs": 600, "overallSavingsBytes": 90112 }
+      },
+      "unused-javascript": {
+        "id": "unused-javascript", "title": "Reduce unused JavaScript", "score": 0.2, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 141 KiB",
+        "metricSavings": { "FCP": 0, "LCP": 450 },
+        "details": { "type": "opportunity", "headings": [], "items": [ { "url": "https://www.googletagmanager.com/gtag/js?id=G-ABC123", "totalBytes": 140000, "wastedBytes": 62000, "wastedPercent": 44 }, { "url": "https://connect.facebook.net/en_US/fbevents.js", "totalBytes": 98000, "wastedBytes": 51000, "wastedPercent": 52 } ], "overallSavingsMs": 450, "overallSavingsBytes": 144384 }
+      },
+      "unminified-css": { "id": "unminified-css", "title": "Minify CSS", "score": 0.5, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 9 KiB", "metricSavings": { "FCP": 150, "LCP": 150 }, "details": { "type": "opportunity", "items": [ { "url": "https://example.org/wp-content/themes/flavor/style.css?ver=2.1", "totalBytes": 61200, "wastedBytes": 9300 } ], "overallSavingsMs": 150, "overallSavingsBytes": 9300 } },
+      "unminified-javascript": { "id": "unminified-javascript", "title": "Minify JavaScript", "score": 1, "scoreDisplayMode": "metricSavings", "metricSavings": { "FCP": 0, "LCP": 0 }, "details": { "type": "opportunity", "items": [], "overallSavingsMs": 0, "overallSavingsBytes": 0 } },
+      "uses-optimized-images": { "id": "uses-optimized-images", "title": "Efficiently encode images", "score": 0.5, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 120 KiB", "metricSavings": { "FCP": 0, "LCP": 300 }, "details": { "type": "opportunity", "items": [ { "url": "https://example.org/wp-content/uploads/2026/05/hero-768x410.jpg", "totalBytes": 210000, "wastedBytes": 122880 } ], "overallSavingsMs": 300, "overallSavingsBytes": 122880 } },
+      "modern-image-formats": { "id": "modern-image-formats", "title": "Serve images in next-gen formats", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 310 KiB", "metricSavings": { "FCP": 0, "LCP": 750 }, "details": { "type": "opportunity", "items": [ { "url": "https://example.org/wp-content/uploads/2026/05/hero-768x410.jpg", "totalBytes": 210000, "wastedBytes": 150000 }, { "url": "https://example.org/wp-content/uploads/2026/04/team.png", "totalBytes": 260000, "wastedBytes": 167000 } ], "overallSavingsMs": 750, "overallSavingsBytes": 317440 } },
+      "uses-responsive-images": { "id": "uses-responsive-images", "title": "Properly size images", "score": 0.5, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 180 KiB", "metricSavings": { "FCP": 0, "LCP": 150 }, "details": { "type": "opportunity", "items": [ { "url": "https://example.org/wp-content/uploads/2026/04/team.png", "totalBytes": 260000, "wastedBytes": 184320 } ], "overallSavingsMs": 150, "overallSavingsBytes": 184320 } },
+      "offscreen-images": { "id": "offscreen-images", "title": "Defer offscreen images", "score": 0.5, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 254 KiB", "metricSavings": { "FCP": 0, "LCP": 0 }, "details": { "type": "opportunity", "items": [ { "url": "https://example.org/wp-content/uploads/2026/04/team.png", "totalBytes": 260000, "wastedBytes": 260000 } ], "overallSavingsMs": 0, "overallSavingsBytes": 260000 } },
+      "uses-text-compression": { "id": "uses-text-compression", "title": "Enable text compression", "score": 1, "scoreDisplayMode": "metricSavings", "metricSavings": { "FCP": 0, "LCP": 0 }, "details": { "type": "opportunity", "items": [], "overallSavingsMs": 0 } },
+      "uses-long-cache-ttl": { "id": "uses-long-cache-ttl", "title": "Serve static assets with an efficient cache policy", "score": 0.4, "scoreDisplayMode": "numeric", "numericValue": 412000, "numericUnit": "byte", "displayValue": "14 resources found", "details": { "type": "table", "headings": [], "items": [ { "url": "https://example.org/wp-content/uploads/2026/05/hero-768x410.jpg", "cacheLifetimeMs": 0, "totalBytes": 210000, "wastedBytes": 210000 }, { "url": "https://connect.facebook.net/en_US/fbevents.js", "cacheLifetimeMs": 1200000, "totalBytes": 98000, "wastedBytes": 96000 } ], "summary": { "wastedBytes": 412000 } } },
+      "font-display": { "id": "font-display", "title": "Ensure text remains visible during webfont load", "score": 0, "scoreDisplayMode": "metricSavings", "metricSavings": { "FCP": 200 }, "details": { "type": "table", "items": [ { "url": "https://example.org/wp-content/themes/flavor/fonts/icons.woff2", "wastedMs": 210 } ] } },
+      "third-party-summary": {
+        "id": "third-party-summary", "title": "Reduce the impact of third-party code", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "Third-party code blocked the main thread for 310 ms",
+        "metricSavings": { "TBT": 310 },
+        "details": { "type": "table", "headings": [], "items": [
+          { "entity": "Google Tag Manager", "transferSize": 141000, "blockingTime": 210, "mainThreadTime": 420, "subItems": { "type": "subitems", "items": [ { "url": "https://www.googletagmanager.com/gtag/js?id=G-ABC123", "transferSize": 141000, "blockingTime": 210, "mainThreadTime": 420 } ] } },
+          { "entity": { "type": "link", "text": "Facebook", "url": "https://www.facebook.com" }, "transferSize": 99000, "blockingTime": 100, "mainThreadTime": 230, "subItems": { "type": "subitems", "items": [ { "url": "https://connect.facebook.net/en_US/fbevents.js", "transferSize": 99000, "blockingTime": 100, "mainThreadTime": 230 } ] } },
+          { "entity": "Google Fonts", "transferSize": 48000, "blockingTime": 0, "mainThreadTime": 0, "subItems": { "type": "subitems", "items": [ { "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap", "transferSize": 1400 }, { "url": "https://fonts.gstatic.com/s/inter/v13/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2", "transferSize": 46600 } ] } }
+        ], "summary": { "wastedBytes": 288000, "wastedMs": 310 } }
+      },
+      "uses-rel-preconnect": { "id": "uses-rel-preconnect", "title": "Preconnect to required origins", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 310 ms", "metricSavings": { "LCP": 310, "FCP": 310 }, "details": { "type": "opportunity", "items": [ { "url": "https://fonts.gstatic.com", "wastedMs": 310 } ], "overallSavingsMs": 310 } },
+      "dom-size": { "id": "dom-size", "title": "Avoid an excessive DOM size", "score": 0.5, "scoreDisplayMode": "numeric", "numericValue": 1840, "numericUnit": "element", "displayValue": "1,840 elements", "details": { "type": "table", "items": [ { "statistic": "Total DOM Elements", "value": { "type": "numeric", "granularity": 1, "value": 1840 } }, { "node": { "type": "node", "selector": "div.footer-menu > ul", "snippet": "<ul class=\"menu\">" }, "statistic": "Maximum Child Elements", "value": { "type": "numeric", "granularity": 1, "value": 96 } } ] } },
+      "bootup-time": { "id": "bootup-time", "title": "Reduce JavaScript execution time", "score": 0.6, "scoreDisplayMode": "metricSavings", "numericValue": 2150, "numericUnit": "millisecond", "displayValue": "2.2 s", "metricSavings": { "TBT": 350 }, "details": { "type": "table", "items": [ { "url": "https://www.googletagmanager.com/gtag/js?id=G-ABC123", "total": 820, "scripting": 610, "scriptParseCompile": 40 }, { "url": "https://example.org/", "total": 600, "scripting": 120, "scriptParseCompile": 4 } ], "summary": { "wastedMs": 2150 } } },
+      "mainthread-work-breakdown": { "id": "mainthread-work-breakdown", "title": "Minimize main-thread work", "score": 0.3, "scoreDisplayMode": "metricSavings", "numericValue": 4900, "numericUnit": "millisecond", "displayValue": "4.9 s", "metricSavings": { "TBT": 400 }, "details": { "type": "table", "items": [ { "group": "scriptEvaluation", "groupLabel": "Script Evaluation", "duration": 2100 }, { "group": "styleLayout", "groupLabel": "Style & Layout", "duration": 1400 } ] } },
+      "layout-shift-elements": { "id": "layout-shift-elements", "title": "Avoid large layout shifts", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "2 layout shifts found", "metricSavings": { "CLS": 0.11 }, "details": { "type": "table", "items": [ { "node": { "type": "node", "selector": "header.site-header", "snippet": "<header class=\"site-header\">" }, "score": 0.09 } ] } },
+      "unsized-images": { "id": "unsized-images", "title": "Image elements do not have explicit width and height", "score": 0.5, "scoreDisplayMode": "metricSavings", "metricSavings": { "CLS": 0.05 }, "details": { "type": "table", "items": [ { "url": "https://example.org/wp-content/uploads/2026/03/logo.png", "node": { "type": "node", "selector": "a.custom-logo-link > img", "snippet": "<img src=\"https://example.org/wp-content/uploads/2026/03/logo.png\" class=\"custom-logo\">" } } ] } },
+      "redirects": { "id": "redirects", "title": "Avoid multiple page redirects", "score": 1, "scoreDisplayMode": "metricSavings", "metricSavings": { "LCP": 0, "FCP": 0 }, "details": { "type": "opportunity", "items": [], "overallSavingsMs": 0 } },
+      "total-byte-weight": { "id": "total-byte-weight", "title": "Avoid enormous network payloads", "score": 0.5, "scoreDisplayMode": "numeric", "numericValue": 3480000, "numericUnit": "byte", "displayValue": "Total size was 3,398 KiB", "details": { "type": "table", "items": [ { "url": "https://example.org/wp-content/uploads/2026/04/team.png", "totalBytes": 260000 } ] } },
+      "legacy-javascript": { "id": "legacy-javascript", "title": "Avoid serving legacy JavaScript to modern browsers", "score": 0.5, "scoreDisplayMode": "metricSavings", "displayValue": "Potential savings of 12 KiB", "metricSavings": { "LCP": 0, "FCP": 0 }, "details": { "type": "opportunity", "items": [ { "url": "https://example.org/wp-content/plugins/slider/js/slider.min.js", "wastedBytes": 12400 } ], "overallSavingsMs": 0, "overallSavingsBytes": 12400 } },
+      "network-requests": { "id": "network-requests", "title": "Network Requests", "score": 1, "scoreDisplayMode": "informative", "details": { "type": "table", "items": [
+        { "url": "https://example.org/", "protocol": "h2", "resourceType": "Document", "transferSize": 18000, "statusCode": 200 },
+        { "url": "https://fonts.googleapis.com/css2?family=Inter", "protocol": "h2", "resourceType": "Stylesheet", "transferSize": 1400, "statusCode": 200 },
+        { "url": "https://fonts.gstatic.com/s/inter/v13/a.woff2", "protocol": "h2", "resourceType": "Font", "transferSize": 46600, "statusCode": 200 },
+        { "url": "https://cdn.example-cdn.net/lib.js", "protocol": "h2", "resourceType": "Script", "transferSize": 12000, "statusCode": 200 }
+      ] } },
+      "performance-budget": { "id": "performance-budget", "title": "Performance budget", "score": null, "scoreDisplayMode": "notApplicable" }
+    },
+    "categories": { "performance": { "id": "performance", "title": "Performance", "score": 0.34, "auditRefs": [ { "id": "first-contentful-paint", "weight": 10, "group": "metrics", "acronym": "FCP" }, { "id": "largest-contentful-paint", "weight": 25, "group": "metrics", "acronym": "LCP" } ] } },
+    "timing": { "total": 14210.4 }
+  },
+  "analysisUTCTimestamp": "2026-11-05T02:31:12.004Z"
+}

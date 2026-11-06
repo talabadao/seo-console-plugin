@@ -1,0 +1,25 @@
+{
+  "record": {
+    "key": { "formFactor": "PHONE", "origin": "https://example.org" },
+    "metrics": {
+      "largest_contentful_paint": {
+        "histogramTimeseries": [ { "start": 0, "end": 2500, "densities": [ 0.61, 0.63, "NaN", 0.66 ] }, { "start": 2500, "end": 4000, "densities": [ 0.22, 0.21, "NaN", 0.2 ] }, { "start": 4000, "densities": [ 0.17, 0.16, "NaN", 0.14 ] } ],
+        "percentilesTimeseries": { "p75s": [ 3480, 3310, null, 3120 ] }
+      },
+      "cumulative_layout_shift": {
+        "histogramTimeseries": [ { "start": "0.00", "end": "0.10", "densities": [ 0.86, 0.87, "NaN", 0.88 ] }, { "start": "0.10", "end": "0.25", "densities": [ 0.09, 0.08, "NaN", 0.08 ] }, { "start": "0.25", "densities": [ 0.05, 0.05, "NaN", 0.04 ] } ],
+        "percentilesTimeseries": { "p75s": [ "0.07", "0.06", null, "0.05" ] }
+      },
+      "interaction_to_next_paint": {
+        "histogramTimeseries": [ { "start": 0, "end": 200, "densities": [ 0.75, 0.77, "NaN", 0.79 ] }, { "start": 200, "end": 500, "densities": [ 0.18, 0.16, "NaN", 0.15 ] }, { "start": 500, "densities": [ 0.07, 0.07, "NaN", 0.06 ] } ],
+        "percentilesTimeseries": { "p75s": [ 212, 198, null, 186 ] }
+      }
+    },
+    "collectionPeriods": [
+      { "firstDate": { "year": 2026, "month": 9, "day": 13 }, "lastDate": { "year": 2026, "month": 10, "day": 10 } },
+      { "firstDate": { "year": 2026, "month": 9, "day": 20 }, "lastDate": { "year": 2026, "month": 10, "day": 17 } },
+      { "firstDate": { "year": 2026, "month": 9, "day": 27 }, "lastDate": { "year": 2026, "month": 10, "day": 24 } },
+      { "firstDate": { "year": 2026, "month": 10, "day": 4 }, "lastDate": { "year": 2026, "month": 10, "day": 31 } }
+    ]
+  }
+}
