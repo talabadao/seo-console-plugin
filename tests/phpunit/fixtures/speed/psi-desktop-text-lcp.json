@@ -1,0 +1,62 @@
+{
+  "captchaResult": "CAPTCHA_NOT_NEEDED",
+  "kind": "pagespeedonline#result",
+  "id": "https://example.org/about/",
+  "loadingExperience": { "initial_url": "https://example.org/about/" },
+  "lighthouseResult": {
+    "requestedUrl": "https://example.org/about/",
+    "finalUrl": "https://example.org/about/",
+    "finalDisplayedUrl": "https://example.org/about/",
+    "lighthouseVersion": "13.0.1",
+    "fetchTime": "2026-11-05T02:40:01.511Z",
+    "runWarnings": [],
+    "configSettings": { "emulatedFormFactor": "desktop", "formFactor": "desktop", "locale": "en-US", "onlyCategories": [ "performance" ] },
+    "audits": {
+      "first-contentful-paint": { "id": "first-contentful-paint", "title": "First Contentful Paint", "score": 0.93, "scoreDisplayMode": "numeric", "numericValue": 720, "numericUnit": "millisecond", "displayValue": "0.7 s" },
+      "largest-contentful-paint": { "id": "largest-contentful-paint", "title": "Largest Contentful Paint", "score": 0.86, "scoreDisplayMode": "numeric", "numericValue": 1310, "numericUnit": "millisecond", "displayValue": "1.3 s" },
+      "total-blocking-time": { "id": "total-blocking-time", "title": "Total Blocking Time", "score": 1, "scoreDisplayMode": "numeric", "numericValue": 20, "numericUnit": "millisecond", "displayValue": "20 ms" },
+      "cumulative-layout-shift": { "id": "cumulative-layout-shift", "title": "Cumulative Layout Shift", "score": 1, "scoreDisplayMode": "numeric", "numericValue": 0.002, "numericUnit": "unitless", "displayValue": "0.002" },
+      "speed-index": { "id": "speed-index", "title": "Speed Index", "score": 0.9, "scoreDisplayMode": "numeric", "numericValue": 1180, "numericUnit": "millisecond", "displayValue": "1.2 s" },
+      "lcp-breakdown-insight": {
+        "id": "lcp-breakdown-insight", "title": "LCP breakdown", "score": null, "scoreDisplayMode": "informative",
+        "details": { "type": "list", "items": [
+          { "type": "table", "headings": [ { "key": "label", "valueType": "text", "label": "Subpart" }, { "key": "duration", "valueType": "ms", "label": "Duration" } ], "items": [ { "subpart": "timeToFirstByte", "label": "Time to first byte", "duration": 420 }, { "subpart": "elementRenderDelay", "label": "Element render delay", "duration": 890 } ] },
+          { "type": "node", "lhId": "page-1-H1", "path": "1,HTML,1,BODY,2,MAIN,0,H1", "selector": "main.site-main > article > header > h1.entry-title", "snippet": "<h1 class=\"entry-title\">", "nodeLabel": "About our agency" }
+        ] }
+      },
+      "lcp-discovery-insight": { "id": "lcp-discovery-insight", "title": "LCP request discovery", "score": null, "scoreDisplayMode": "notApplicable" },
+      "document-latency-insight": {
+        "id": "document-latency-insight", "title": "Document request latency", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "Est savings of 320 ms",
+        "metricSavings": { "FCP": 320, "LCP": 320 },
+        "details": { "type": "checklist", "items": { "noRedirects": { "label": "Avoids redirects", "value": true }, "serverResponseIsFast": { "label": "Server responds slowly (observed 420 ms)", "value": false }, "usesCompression": { "label": "Applies text compression", "value": true } } }
+      },
+      "render-blocking-insight": {
+        "id": "render-blocking-insight", "title": "Render blocking requests", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "Est savings of 210 ms",
+        "metricSavings": { "FCP": 210, "LCP": 210 },
+        "details": { "type": "table", "headings": [], "items": [ { "url": "https://example.org/wp-content/themes/flavor/style.css?ver=2.1", "totalBytes": 61200, "wastedMs": 210 } ] }
+      },
+      "third-parties-insight": {
+        "id": "third-parties-insight", "title": "3rd parties", "score": null, "scoreDisplayMode": "informative",
+        "details": { "type": "table", "headings": [], "items": [
+          { "entity": "Google Fonts", "transferSize": 45000, "mainThreadTime": 3, "subItems": { "type": "subitems", "items": [ { "url": "https://fonts.gstatic.com/s/inter/v13/a.woff2", "transferSize": 43600 }, { "url": "https://fonts.googleapis.com/css2?family=Inter", "transferSize": 1400 } ] } },
+          { "entity": "example.org", "transferSize": 300000, "mainThreadTime": 90, "subItems": { "type": "subitems", "items": [ { "url": "https://example.org/wp-content/themes/flavor/style.css", "transferSize": 61200 } ] } }
+        ] }
+      },
+      "image-delivery-insight": {
+        "id": "image-delivery-insight", "title": "Improve image delivery", "score": 0, "scoreDisplayMode": "metricSavings", "displayValue": "Est savings of 96 KiB",
+        "metricSavings": { "FCP": 0, "LCP": 0 },
+        "details": { "type": "table", "headings": [], "items": [ { "url": "https://example.org/wp-content/uploads/2026/04/team.png", "totalBytes": 260000, "wastedBytes": 98304 } ] }
+      },
+      "cache-insight": {
+        "id": "cache-insight", "title": "Use efficient cache lifetimes", "score": 0.5, "scoreDisplayMode": "metricSavings", "displayValue": "Est savings of 210 KiB",
+        "metricSavings": { "FCP": 0, "LCP": 0 },
+        "details": { "type": "table", "headings": [], "items": [ { "url": "https://example.org/wp-content/uploads/2026/04/team.png", "cacheLifetimeMs": 0, "totalBytes": 260000, "wastedBytes": 215000 } ] }
+      },
+      "unused-css-rules": { "id": "unused-css-rules", "title": "Reduce unused CSS", "score": 1, "scoreDisplayMode": "metricSavings", "metricSavings": { "FCP": 0, "LCP": 0 }, "details": { "type": "opportunity", "items": [], "overallSavingsMs": 0 } },
+      "bootup-time": { "id": "bootup-time", "title": "Reduce JavaScript execution time", "score": 1, "scoreDisplayMode": "numeric", "numericValue": 120, "displayValue": "0.1 s" },
+      "network-requests": { "id": "network-requests", "title": "Network Requests", "score": 1, "scoreDisplayMode": "informative", "details": { "type": "table", "items": [ { "url": "https://example.org/about/", "resourceType": "Document", "transferSize": 15000 }, { "url": "https://fonts.gstatic.com/s/inter/v13/a.woff2", "resourceType": "Font", "transferSize": 43600 } ] } }
+    },
+    "categories": { "performance": { "id": "performance", "title": "Performance", "score": 0.91, "auditRefs": [] } }
+  },
+  "analysisUTCTimestamp": "2026-11-05T02:40:01.511Z"
+}
