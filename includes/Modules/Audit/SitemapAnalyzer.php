@@ -97,9 +97,10 @@ class SitemapAnalyzer {
 	 * @return bool True when finished.
 	 */
 	public function process( array &$state, callable $on_urls, float $deadline ): bool {
+		$read = 0;
 		while ( $state['queue'] ) {
-			if ( microtime( true ) >= $deadline ) {
-				return false;
+			if ( $read > 0 && microtime( true ) >= $deadline ) {
+				return false; // At least one file per call, so tiny budgets still progress.
 			}
 			$item = array_shift( $state['queue'] );
 			if ( 'probe' === $item['kind'] && $state['found'] ) {
@@ -110,6 +111,7 @@ class SitemapAnalyzer {
 			}
 			$state['seen'][ $item['url'] ] = true;
 			$state['tried'][]              = $item['url'];
+			++$read;
 
 			$file         = $this->read( $item['url'] );
 			$result       = $this->last_read;

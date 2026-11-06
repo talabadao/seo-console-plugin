@@ -7,6 +7,8 @@
 
 namespace SEOConsole\Modules\Audit;
 
+use SEOConsole\Plugin;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -96,18 +98,53 @@ class RobotsAnalyzer {
 
 	/**
 	 * Who manages robots.txt: 'file' (physical file), 'rankmath', 'yoast' or 'core' (WordPress virtual default).
+	 *
+	 * @param string|null $seo_plugin Active SEO plugin ('rankmath'|'yoast'|'none'); default: core SeoPlugins::active().
 	 */
-	public static function manager(): string {
+	public static function manager( ?string $seo_plugin = null ): string {
 		if ( '' !== self::physical_file() ) {
 			return 'file';
 		}
-		if ( defined( 'RANK_MATH_VERSION' ) || class_exists( 'RankMath' ) ) {
-			return 'rankmath';
+		if ( null === $seo_plugin ) {
+			$seo_plugin = class_exists( Plugin::class ) ? Plugin::instance()->seo()->active() : 'none';
 		}
-		if ( defined( 'WPSEO_VERSION' ) ) {
-			return 'yoast';
+		return in_array( $seo_plugin, array( 'rankmath', 'yoast' ), true ) ? $seo_plugin : 'core';
+	}
+
+	/**
+	 * Admin URL where robots.txt is edited for a manager ('' when it is not editable in WordPress).
+	 *
+	 * @param string $manager Manager id.
+	 */
+	public static function edit_url( string $manager ): string {
+		switch ( $manager ) {
+			case 'rankmath':
+				return admin_url( 'admin.php?page=rank-math-options-general#setting-panel-robots' );
+			case 'yoast':
+				return admin_url( 'admin.php?page=wpseo_tools&tool=file-editor' );
+			case 'core':
+				return admin_url( 'options-reading.php' );
+			default:
+				return '';
 		}
-		return 'core';
+	}
+
+	/**
+	 * Display name of a manager.
+	 *
+	 * @param string $manager Manager id.
+	 */
+	public static function manager_label( string $manager ): string {
+		switch ( $manager ) {
+			case 'file':
+				return __( 'A robots.txt file on your hosting', 'seo-console' );
+			case 'rankmath':
+				return 'Rank Math';
+			case 'yoast':
+				return 'Yoast SEO';
+			default:
+				return __( 'WordPress (automatic)', 'seo-console' );
+		}
 	}
 
 	/**

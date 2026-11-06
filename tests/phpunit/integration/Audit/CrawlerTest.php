@@ -148,6 +148,10 @@ class CrawlerTest extends AuditTestCase {
 			);
 		}
 		$this->assertSame( array( '' ), $issues['sitemap_gz_skipped'] );
+		// The home page links to "/about" (no slash): one notice on the target, listing the linking page.
+		$this->assertSame( array( 'http://example.org/about/' ), $issues['link_slash_mismatch'] );
+		$slash = $this->store->issues( $run_id, array( 'rule_id' => 'link_slash_mismatch' ) )['items'][0]['data'];
+		$this->assertSame( array( 'http://example.org/' ), $slash['pages'] );
 		foreach ( array( 'loopback_failed', 'robots_missing', 'robots_disallow_all', 'sitemap_missing', 'title_missing', 'canonical_missing', 'http_5xx', 'viewport_missing' ) as $absent ) {
 			$this->assertArrayNotHasKey( $absent, $issues, $absent );
 		}
