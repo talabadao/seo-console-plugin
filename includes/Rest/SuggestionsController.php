@@ -210,7 +210,8 @@ final class SuggestionsController extends Controller {
 				'ok' => ! is_wp_error( $result ),
 			);
 			if ( $result instanceof WP_Error ) {
-				$item['error'] = self::error_array( $result );
+				$item['code']    = (string) $result->get_error_code();
+				$item['message'] = $result->get_error_message();
 			} elseif ( $result instanceof Change ) {
 				$item['change_id'] = $result->id;
 			}

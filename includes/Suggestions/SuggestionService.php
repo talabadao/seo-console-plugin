@@ -60,11 +60,14 @@ final class SuggestionService {
 	/**
 	 * Creates a suggestion, or updates the pending one for the same type/object_type/object_id/field.
 	 *
+	 * Can be passed directly as a sink callable: array( $service, 'create' ).
+	 *
 	 * @param array $data module, type, object_type, object_id, field, proposed_value (required); rationale, confidence
-	 *                    (0–1), source ('ai'|'rule'|'mcp', default 'ai'), model.
+	 *                    (0–1), source ('ai'|'rule'|'mcp', default 'ai'), model, meta (array, e.g. [ 'warnings' => [...] ]).
+	 * @param array $meta Extra meta merged into $data['meta'].
 	 * @return int|WP_Error Suggestion id.
 	 */
-	public function create( array $data ) {
+	public function create( array $data, array $meta = array() ) {
 		foreach ( array( 'type', 'object_type', 'field' ) as $key ) {
 			if ( empty( $data[ $key ] ) || ! is_string( $data[ $key ] ) ) {
 				/* translators: %s: field name */
@@ -84,6 +87,15 @@ final class SuggestionService {
 				return new WP_Error( 'seoc_invalid_suggestion', __( 'Confidence must be between 0 and 1.', 'seo-console' ), array( 'status' => 400 ) );
 			}
 			$confidence = (float) $data['confidence'];
+		}
+
+		if ( isset( $data['meta'] ) && null !== $data['meta'] && ! is_array( $data['meta'] ) ) {
+			return new WP_Error( 'seoc_invalid_suggestion', __( '"meta" must be an object.', 'seo-console' ), array( 'status' => 400 ) );
+		}
+		$meta = array_merge( isset( $data['meta'] ) ? (array) $data['meta'] : array(), $meta );
+		$json = empty( $meta ) ? '' : wp_json_encode( $meta );
+		if ( false === $json || strlen( (string) $json ) > 65536 ) {
+			return new WP_Error( 'seoc_invalid_suggestion', __( '"meta" must be JSON data under 64 KB.', 'seo-console' ), array( 'status' => 400 ) );
 		}
 
 		$type        = $data['type'];
@@ -120,6 +132,7 @@ final class SuggestionService {
 			'model'          => isset( $data['model'] ) && '' !== $data['model'] ? substr( sanitize_text_field( (string) $data['model'] ), 0, 80 ) : null,
 			'status'         => 'pending',
 			'error'          => null,
+			'meta'           => empty( $meta ) ? null : $meta,
 		);
 
 		$existing = $this->store->find_pending( $type, $object_type, $object_id, $field );
@@ -318,6 +331,7 @@ final class SuggestionService {
 			'module'         => (string) $row['module'],
 			'type'           => (string) $row['type'],
 			'label'          => $applier ? $applier->label( (string) $row['field'] ) : (string) $row['field'],
+			'field_label'    => $applier ? $applier->label( (string) $row['field'] ) : (string) $row['field'],
 			'object_type'    => (string) $row['object_type'],
 			'object_id'      => $row['object_id'],
 			'field'          => (string) $row['field'],
@@ -332,6 +346,7 @@ final class SuggestionService {
 			'change_id'      => $row['change_id'],
 			'error'          => $row['error'],
 			'created_by'     => (int) $row['created_by'],
+			'meta'           => isset( $row['meta'] ) && is_array( $row['meta'] ) ? $row['meta'] : null,
 		);
 		return array_merge( $item, ObjectInfo::describe( $item['object_type'], $item['object_id'] ) );
 	}

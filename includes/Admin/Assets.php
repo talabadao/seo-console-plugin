@@ -73,9 +73,15 @@ final class Assets {
 		wp_set_script_translations( $handle, 'seo-console', SEOC_DIR . 'languages' );
 		wp_add_inline_script( $handle, 'window.seocConfig = ' . wp_json_encode( $this->config( $page, $pages ) ) . ';', 'before' );
 
-		foreach ( array( $entry . '.css', 'style-' . $entry . '.css' ) as $css ) {
+		foreach ( array(
+			$entry . '.css'            => $handle,
+			'style-' . $entry . '.css' => $handle . '-style',
+		) as $css => $style_handle ) {
 			if ( file_exists( self::build_path( $css ) ) ) {
-				wp_enqueue_style( $handle . '-' . md5( $css ), SEOC_URL . 'build/' . $css, array( 'wp-components' ), $version );
+				wp_enqueue_style( $style_handle, SEOC_URL . 'build/' . $css, array( 'wp-components' ), $version );
+				if ( file_exists( self::build_path( str_replace( '.css', '-rtl.css', $css ) ) ) ) {
+					wp_style_add_data( $style_handle, 'rtl', 'replace' );
+				}
 			}
 		}
 	}
@@ -89,10 +95,41 @@ final class Assets {
 	 */
 	public function config( array $page, array $pages = array() ): array {
 		$modules = array();
+		$info    = array();
 		foreach ( $this->plugin->modules() as $id => $module ) {
 			$modules[ $id ] = $this->plugin->settings()->is_enabled( $id );
+			$module_pages   = (array) $module->admin_pages();
+			$info[ $id ]    = array(
+				'title'       => $module->title(),
+				'description' => $module->description(),
+				'page'        => isset( $module_pages[0]['slug'] ) ? sanitize_key( (string) $module_pages[0]['slug'] ) : null,
+			);
 		}
-		$nav = array();
+		/**
+		 * Filters the Dashboard cards contributed by modules.
+		 *
+		 * @param array $cards List of cards (shape agreed between modules and the Dashboard UI).
+		 */
+		$cards = array_values( (array) apply_filters( 'seoc_dashboard_cards', array() ) );
+		/**
+		 * Filters the Dashboard "getting started" checklist.
+		 *
+		 * @param array{speedTested: bool, auditRun: bool} $checklist Checklist flags.
+		 */
+		$checklist = array_merge(
+			array(
+				'speedTested' => false,
+				'auditRun'    => false,
+			),
+			(array) apply_filters(
+				'seoc_checklist',
+				array(
+					'speedTested' => false,
+					'auditRun'    => false,
+				)
+			)
+		);
+		$nav       = array();
 		foreach ( $pages as $item ) {
 			$nav[] = array(
 				'slug'  => $item['slug'],
@@ -103,18 +140,22 @@ final class Assets {
 		}
 		$claude = $this->plugin->claude();
 		return array(
-			'restNamespace' => Plugin::REST_NAMESPACE,
-			'adminUrl'      => admin_url(),
-			'pluginUrl'     => SEOC_URL,
-			'version'       => SEOC_VERSION,
-			'page'          => (string) $page['entry'],
-			'modules'       => (object) $modules,
-			'seoPlugin'     => $this->plugin->seo()->active(),
-			'cachePlugins'  => $this->plugin->cache()->detect(),
-			'safeMode'      => $this->plugin->safe_mode(),
-			'aiConfigured'  => $claude->is_available(),
-			'pages'         => $nav,
-			'canManage'     => Capabilities::can_manage(),
+			'restNamespace'    => Plugin::REST_NAMESPACE,
+			'adminUrl'         => admin_url(),
+			'pluginUrl'        => SEOC_URL,
+			'version'          => SEOC_VERSION,
+			'page'             => (string) $page['entry'],
+			'modules'          => (object) $modules,
+			'moduleInfo'       => (object) $info,
+			'dashboardCards'   => $cards,
+			'checklist'        => $checklist,
+			'googleConfigured' => $this->plugin->secrets()->has( 'google_api_key' ),
+			'seoPlugin'        => $this->plugin->seo()->active(),
+			'cachePlugins'     => $this->plugin->cache()->detect(),
+			'safeMode'         => $this->plugin->safe_mode(),
+			'aiConfigured'     => $claude->is_available(),
+			'pages'            => $nav,
+			'canManage'        => Capabilities::can_manage(),
 		);
 	}
 }

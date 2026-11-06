@@ -75,17 +75,15 @@ abstract class Controller {
 	protected function pagination_args(): array {
 		return array(
 			'page'     => array(
-				'type'              => 'integer',
-				'default'           => 1,
-				'minimum'           => 1,
-				'sanitize_callback' => 'absint',
+				'type'    => 'integer',
+				'default' => 1,
+				'minimum' => 1,
 			),
 			'per_page' => array(
-				'type'              => 'integer',
-				'default'           => 20,
-				'minimum'           => 1,
-				'maximum'           => 100,
-				'sanitize_callback' => 'absint',
+				'type'    => 'integer',
+				'default' => 20,
+				'minimum' => 1,
+				'maximum' => 100,
 			),
 		);
 	}

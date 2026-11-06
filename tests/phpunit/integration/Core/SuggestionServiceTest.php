@@ -67,6 +67,24 @@ class SuggestionServiceTest extends CoreTestCase {
 		$this->assertSame( 'Second proposal.', $result['items'][0]['proposed_value'] );
 	}
 
+	public function test_meta_column_and_sink_callable(): void {
+		$service = Plugin::instance()->suggestions();
+		$sink    = array( $service, 'create' );
+		$id      = call_user_func( $sink, $this->data( array( 'meta' => array( 'warnings' => array( 'Too long' ) ) ) ), array( 'batch' => 7 ) );
+		$item    = $service->get( $id );
+		$this->assertSame(
+			array(
+				'warnings' => array( 'Too long' ),
+				'batch'    => 7,
+			),
+			$item['meta']
+		);
+		$this->assertSame( 'Meta description', $item['field_label'] );
+		$this->assertWPError( $service->create( $this->data( array( 'meta' => 'nope' ) ) ) );
+		$plain = $service->create( $this->data( array( 'field' => 'title', 'proposed_value' => 'T' ) ) );
+		$this->assertNull( $service->get( $plain )['meta'] );
+	}
+
 	public function test_invalid_input(): void {
 		$service = Plugin::instance()->suggestions();
 		$this->assertSame( 'seoc_unknown_applier', $service->create( $this->data( array( 'type' => 'nope' ) ) )->get_error_code() );

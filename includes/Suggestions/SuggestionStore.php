@@ -19,7 +19,7 @@ final class SuggestionStore {
 
 	const STATUSES = array( 'pending', 'applied', 'rejected', 'failed', 'stale' );
 
-	const JSON_COLUMNS = array( 'current_value', 'proposed_value', 'final_value' );
+	const JSON_COLUMNS = array( 'current_value', 'proposed_value', 'final_value', 'meta' );
 
 	/**
 	 * Inserts a row.
@@ -209,7 +209,7 @@ final class SuggestionStore {
 	 */
 	private function decode( array $row ): array {
 		foreach ( self::JSON_COLUMNS as $column ) {
-			$row[ $column ] = Change::decode( $row[ $column ] );
+			$row[ $column ] = isset( $row[ $column ] ) ? Change::decode( $row[ $column ] ) : null;
 		}
 		foreach ( array( 'id', 'created_by' ) as $column ) {
 			$row[ $column ] = (int) $row[ $column ];

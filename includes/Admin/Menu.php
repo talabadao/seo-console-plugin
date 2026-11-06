@@ -193,7 +193,8 @@ final class Menu {
 			);
 			echo '</p></div>';
 		}
-		echo '<div id="seoc-root" class="seoc-app" data-page="' . esc_attr( $entry ) . '"></div>';
+		// The React Page component adds the .seoc-app wrapper and the wp-header-end marker.
+		echo '<div id="seoc-root" data-page="' . esc_attr( $entry ) . '"></div>';
 		echo '</div>';
 	}
 

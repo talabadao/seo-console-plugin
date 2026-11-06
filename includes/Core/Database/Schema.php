@@ -91,6 +91,7 @@ final class Schema {
   change_id bigint(20) unsigned DEFAULT NULL,
   error text,
   created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+  meta longtext,
   PRIMARY KEY  (id),
   KEY status_module (status,module),
   KEY object_ref (object_type,object_id),

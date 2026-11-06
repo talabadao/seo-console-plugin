@@ -156,10 +156,11 @@ class ClaudeClient implements ClientInterface {
 	/**
 	 * One tiny request to verify the key and model (ignores the monthly budget).
 	 *
-	 * @param string|null $model Model to test (default: configured model).
-	 * @return array{ok: bool, model: string, latency_ms: int}|WP_Error
+	 * @param string|null $model   Model to test (default: configured model).
+	 * @param string|null $api_key Unsaved key typed in Settings, used for this request only (never stored or echoed).
+	 * @return array{ok: bool, model: string, message: string, latency_ms: int}|WP_Error
 	 */
-	public function test_connection( ?string $model = null ) {
+	public function test_connection( ?string $model = null, ?string $api_key = null ) {
 		$start  = microtime( true );
 		$result = $this->request(
 			'You check that an API connection works.',
@@ -176,15 +177,19 @@ class ClaudeClient implements ClientInterface {
 				'context'      => 'test_connection',
 				'skip_budget'  => true,
 				'allow_cutoff' => true,
+				'api_key'      => null !== $api_key && '' !== trim( $api_key ) ? trim( $api_key ) : null,
 			),
 			null
 		);
 		if ( is_wp_error( $result ) && 'seoc_ai_refusal' !== $result->get_error_code() ) {
 			return $result;
 		}
+		$served = is_wp_error( $result ) ? ( null !== $model ? $model : $this->model() ) : $result['model'];
 		return array(
 			'ok'         => true,
-			'model'      => is_wp_error( $result ) ? (string) $model : $result['model'],
+			'model'      => $served,
+			/* translators: %s: model id */
+			'message'    => sprintf( __( 'Connected. %s answered.', 'seo-console' ), $served ),
 			'latency_ms' => (int) round( ( microtime( true ) - $start ) * 1000 ),
 		);
 	}
@@ -244,7 +249,7 @@ class ClaudeClient implements ClientInterface {
 	 * @return array{text: string, usage: array, model: string, stop_reason: string}|WP_Error
 	 */
 	private function request( string $system, array $messages, array $opts, ?array $json_schema ) {
-		$key = $this->secrets->get( 'claude_api_key' );
+		$key = isset( $opts['api_key'] ) && is_string( $opts['api_key'] ) && '' !== $opts['api_key'] ? $opts['api_key'] : $this->secrets->get( 'claude_api_key' );
 		if ( null === $key ) {
 			return new WP_Error( 'seoc_ai_no_key', __( 'Add your Claude API key in SEO Console → Settings first.', 'seo-console' ), array( 'status' => 400 ) );
 		}
@@ -299,6 +304,10 @@ class ClaudeClient implements ClientInterface {
 			$response = wp_remote_post( self::ENDPOINT, $args );
 			if ( is_wp_error( $response ) ) {
 				$this->log( 'warning', 'Claude request failed (network).', array( 'error' => $response->get_error_message() ) );
+				$message = $response->get_error_message();
+				if ( false !== stripos( $message, 'timed out' ) || false !== stripos( $message, 'timeout' ) || false !== strpos( $message, 'cURL error 28' ) ) {
+					return new WP_Error( 'seoc_ai_timeout', __( 'The Claude API did not answer in time. Try again.', 'seo-console' ), array( 'status' => 504 ) );
+				}
 				return new WP_Error(
 					'seoc_ai_network',
 					/* translators: %s: error message */

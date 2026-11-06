@@ -118,18 +118,25 @@ final class Plugin {
 		$plugin->load_modules();
 		Schema::maybe_migrate( $plugin->module_tables() );
 
-		$frontend = $plugin->is_frontend_request() && ! $plugin->safe_mode();
-		foreach ( $plugin->modules as $id => $module ) {
-			if ( ! $plugin->settings()->is_enabled( $id ) ) {
+		$plugin->register_modules();
+		$plugin->register_hooks();
+	}
+
+	/**
+	 * Calls register() on every enabled module and, on public page requests with Safe Mode off,
+	 * register_frontend(). Called once by boot().
+	 */
+	public function register_modules(): void {
+		$frontend = $this->is_frontend_request() && ! $this->safe_mode();
+		foreach ( $this->modules as $id => $module ) {
+			if ( ! $this->settings()->is_enabled( $id ) ) {
 				continue;
 			}
-			$plugin->call_module( $module, 'register' );
+			$this->call_module( $module, 'register' );
 			if ( $frontend ) {
-				$plugin->call_module( $module, 'register_frontend' );
+				$this->call_module( $module, 'register_frontend' );
 			}
 		}
-
-		$plugin->register_hooks();
 	}
 
 	/**

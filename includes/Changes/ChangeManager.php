@@ -445,28 +445,32 @@ final class ChangeManager {
 	public function to_rest( Change $change ): array {
 		$applier = $this->applier( $change->type );
 		$user    = $change->user_id ? get_userdata( $change->user_id ) : null;
+		$undoer  = $change->reverted_by ? get_userdata( $change->reverted_by ) : null;
+		$label   = $applier ? $applier->label( $change->field ) : $change->field;
 		$data    = array(
-			'id'            => $change->id,
-			'created_at'    => ObjectInfo::iso_date( $change->created_at ),
-			'user_id'       => $change->user_id,
-			'user_name'     => $user ? $user->display_name : '',
-			'source'        => $change->source,
-			'module'        => $change->module,
-			'type'          => $change->type,
-			'label'         => $applier ? $applier->label( $change->field ) : $change->field,
-			'object_type'   => $change->object_type,
-			'object_id'     => $change->object_id,
-			'field'         => $change->field,
-			'before_value'  => $change->before_value,
-			'after_value'   => $change->after_value,
-			'status'        => $change->status,
-			'error'         => $change->error,
-			'suggestion_id' => $change->suggestion_id,
-			'batch_id'      => $change->batch_id,
-			'note'          => $change->note,
-			'reverted_at'   => ObjectInfo::iso_date( $change->reverted_at ),
-			'reverted_by'   => $change->reverted_by,
-			'can_revert'    => 'applied' === $change->status && null !== $applier,
+			'id'               => $change->id,
+			'created_at'       => ObjectInfo::iso_date( $change->created_at ),
+			'user_id'          => $change->user_id,
+			'user_name'        => $user ? $user->display_name : '',
+			'source'           => $change->source,
+			'module'           => $change->module,
+			'type'             => $change->type,
+			'label'            => $label,
+			'field_label'      => $label,
+			'object_type'      => $change->object_type,
+			'object_id'        => $change->object_id,
+			'field'            => $change->field,
+			'before_value'     => $change->before_value,
+			'after_value'      => $change->after_value,
+			'status'           => $change->status,
+			'error'            => $change->error,
+			'suggestion_id'    => $change->suggestion_id,
+			'batch_id'         => $change->batch_id,
+			'note'             => $change->note,
+			'reverted_at'      => ObjectInfo::iso_date( $change->reverted_at ),
+			'reverted_by'      => $change->reverted_by,
+			'reverted_by_name' => $undoer ? $undoer->display_name : '',
+			'can_revert'       => 'applied' === $change->status && null !== $applier,
 		);
 		return array_merge( $data, ObjectInfo::describe( $change->object_type, $change->object_id ) );
 	}

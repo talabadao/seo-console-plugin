@@ -67,9 +67,14 @@ final class SettingsController extends Controller {
 				'callback'            => array( $this, 'test_ai' ),
 				'permission_callback' => array( $this, 'can_manage' ),
 				'args'                => array(
-					'model' => array(
+					'model'   => array(
 						'type' => 'string',
 						'enum' => Settings::general_schema()['ai_model']['enum'],
+					),
+					'api_key' => array(
+						'description' => __( 'Unsaved key to test; used for this request only and never stored.', 'seo-console' ),
+						'type'        => 'string',
+						'maxLength'   => 512,
 					),
 				),
 			)
@@ -181,8 +186,9 @@ final class SettingsController extends Controller {
 		if ( ! method_exists( $client, 'test_connection' ) ) {
 			return new WP_Error( 'seoc_ai_request', __( 'The AI client cannot be tested.', 'seo-console' ), array( 'status' => 500 ) );
 		}
-		$model = $request->get_param( 'model' );
-		return $this->respond( $client->test_connection( is_string( $model ) ? $model : null ) );
+		$model   = $request->get_param( 'model' );
+		$api_key = $request->get_param( 'api_key' );
+		return $this->respond( $client->test_connection( is_string( $model ) ? $model : null, is_string( $api_key ) ? $api_key : null ) );
 	}
 
 	/**
@@ -193,12 +199,17 @@ final class SettingsController extends Controller {
 	private function payload(): array {
 		$settings = $this->plugin->settings();
 		$modules  = array();
+		$info     = array();
 		$schema   = array(
 			'general' => Settings::general_schema(),
 			'modules' => array(),
 		);
 		foreach ( $this->plugin->modules() as $id => $module ) {
 			$modules[ $id ]           = $settings->all( $id );
+			$info[ $id ]              = array(
+				'title'       => $module->title(),
+				'description' => $module->description(),
+			);
 			$schema['modules'][ $id ] = array(
 				'title'           => $module->title(),
 				'description'     => $module->description(),
@@ -210,18 +221,21 @@ final class SettingsController extends Controller {
 		foreach ( Secrets::KNOWN as $name ) {
 			$secrets[ $name ] = $this->plugin->secrets()->describe( $name );
 		}
-		$safe              = $this->plugin->safe_mode_service();
-		$schema['modules'] = (object) $schema['modules'];
+		$safe                    = $this->plugin->safe_mode_service();
+		$schema['modules']       = (object) $schema['modules'];
+		$usage                   = $this->plugin->usage()->month_summary();
+		$usage['month_cost_usd'] = $usage['cost_usd'];
 		return array(
-			'general'   => $settings->all( Settings::GENERAL ),
-			'modules'   => (object) $modules,
-			'schema'    => $schema,
-			'secrets'   => $secrets,
-			'safe_mode' => array(
+			'general'     => $settings->all( Settings::GENERAL ),
+			'modules'     => (object) $modules,
+			'module_info' => (object) $info,
+			'schema'      => $schema,
+			'secrets'     => $secrets,
+			'safe_mode'   => array(
 				'on'     => $safe->is_on(),
 				'source' => $safe->source(),
 			),
-			'ai_usage'  => $this->plugin->usage()->month_summary(),
+			'ai_usage'    => $usage,
 		);
 	}
 }
