@@ -1,0 +1,19 @@
+# PHPStan runs in CI only (see .github/workflows/ci.yml): phpstan/phpstan and szepeviktor/phpstan-wordpress are
+# installed there, not in composer.json. Conservative on purpose: level 5, plugin code only.
+includes:
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+	level: 5
+	phpVersion: 70400
+	paths:
+		- includes/
+	bootstrapFiles:
+		- tests/phpstan/bootstrap.php
+	scanFiles:
+		- tests/phpstan/third-party-stubs.php
+		- vendor/woocommerce/action-scheduler/functions.php
+	scanDirectories:
+		- vendor/woocommerce/action-scheduler/classes
+	treatPhpDocTypesAsCertain: false
+	reportUnmatchedIgnoredErrors: false
