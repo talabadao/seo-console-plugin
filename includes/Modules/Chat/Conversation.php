@@ -62,7 +62,8 @@ final class Conversation {
 	 *
 	 * @param ClientInterface $client  Claude client.
 	 * @param ContextBuilder  $context Context builder.
-	 * @param array           $options model (string, stored when the client does not report one), max_tokens (int).
+	 * @param array           $options model (string, stored when the client does not report one), max_tokens (int),
+	 *                                 effort ('low'|'medium'; inside a web request on shared hosting use 'low').
 	 */
 	public function __construct( ClientInterface $client, ContextBuilder $context, array $options = array() ) {
 		$this->client  = $client;
@@ -72,6 +73,7 @@ final class Conversation {
 			array(
 				'model'      => '',
 				'max_tokens' => 8000,
+				'effort'     => 'medium',
 			)
 		);
 	}
@@ -187,7 +189,7 @@ final class Conversation {
 			$this->context->system_prompt(),
 			$messages,
 			array(
-				'effort'       => 'medium',
+				'effort'       => in_array( $this->options['effort'], array( 'low', 'medium', 'high' ), true ) ? $this->options['effort'] : 'medium',
 				'cache_system' => true,
 				'max_tokens'   => (int) $this->options['max_tokens'],
 				'context'      => 'chat',

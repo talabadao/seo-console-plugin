@@ -26,6 +26,10 @@ final class Errors {
 				$message = __( 'AI is not set up or this month\'s AI budget is used up. Check the Claude API key and budget in SEO Console → Settings.', 'seo-console' );
 				$status  = 503;
 				break;
+			case 'seoc_ai_no_key':
+				$message = __( 'Add your Claude API key in SEO Console → Settings.', 'seo-console' );
+				$status  = 503;
+				break;
 			case 'seoc_ai_budget':
 				$message = __( 'This month\'s AI budget is used up. Raise it in SEO Console → Settings, or wait until next month.', 'seo-console' );
 				$status  = 402;
@@ -45,13 +49,17 @@ final class Errors {
 				$status  = 422;
 				break;
 			case 'seoc_ai_truncated':
-			case 'seoc_ai_max_tokens':
 				$message = __( 'The answer was cut off because it was too long. Ask for a shorter answer or split the question.', 'seo-console' );
 				$status  = 502;
 				break;
 			case 'seoc_ai_request':
 				$message = __( 'Claude could not process this request. Try a shorter message or start a new conversation.', 'seo-console' );
 				$status  = 400;
+				break;
+			case 'seoc_ai_invalid_json':
+			case 'seoc_ai_invalid_response':
+				$message = __( 'Claude\'s answer could not be read. Please try again.', 'seo-console' );
+				$status  = 502;
 				break;
 			default:
 				$raw     = wp_strip_all_tags( $error->get_error_message() );

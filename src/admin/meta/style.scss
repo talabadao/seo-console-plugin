@@ -1,0 +1,33 @@
+// SEO Meta page. Scoped under .seoc-app (ARCHITECTURE.md §13).
+.seoc-app {
+	.seoc-meta__table {
+		.check-column {
+			width: 2.2em;
+			padding: 8px 0 0 8px;
+		}
+
+		td,
+		th {
+			min-width: 0;
+		}
+	}
+
+	.seoc-meta__value {
+		margin-top: 4px;
+		max-width: 32em;
+		overflow-wrap: anywhere;
+	}
+
+	.seoc-meta__search {
+		min-width: 200px;
+	}
+
+	.seoc-meta__note {
+		padding: 0 16px;
+	}
+
+	#seoc-meta-review {
+		margin-top: 16px;
+		scroll-margin-top: 48px;
+	}
+}

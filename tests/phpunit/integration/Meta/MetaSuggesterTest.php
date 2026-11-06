@@ -169,6 +169,9 @@ class MetaSuggesterTest extends WP_UnitTestCase {
 			'unavailable' => array( 'seoc_ai_unavailable', true, true, 'could not be reached' ),
 			'network'     => array( 'seoc_ai_network', true, true, 'could not be reached' ),
 			'request'     => array( 'seoc_ai_request', false, false, 'could not process' ),
+			'no key'      => array( 'seoc_ai_no_key', true, false, 'Add your Claude API key' ),
+			'timeout'     => array( 'seoc_ai_timeout', true, true, 'could not be reached' ),
+			'bad json'    => array( 'seoc_ai_invalid_json', false, true, 'expected format' ),
 			'unknown'     => array( 'seoc_ai_weird', false, false, 'Boom' ),
 		);
 	}
@@ -210,13 +213,16 @@ class MetaSuggesterTest extends WP_UnitTestCase {
 		$weak    = self::factory()->attachment->create_object( 'IMG_0001.jpg', $post_id, array( 'post_mime_type' => 'image/jpeg' ) );
 		$good    = self::factory()->attachment->create_object( 'ro-filter.jpg', $post_id, array( 'post_mime_type' => 'image/jpeg' ) );
 		$deco    = self::factory()->attachment->create_object( 'divider.png', $post_id, array( 'post_mime_type' => 'image/png' ) );
-		update_post_meta( $good, '_wp_attachment_image_alt', 'Reverse osmosis filter with five cartridges' );
+		$cover   = self::factory()->attachment->create_object( 'cover.jpg', $post_id, array( 'post_mime_type' => 'image/jpeg' ) );
+		update_post_meta( $good, '_wp_attachment_image_alt', 'Something else in the media library' );
+		update_post_meta( $weak, '_wp_attachment_image_alt', 'A good library alt that the content does not use' );
+		set_post_thumbnail( $post_id, $cover );
 		$up = wp_get_upload_dir()['baseurl'];
 		wp_update_post(
 			array(
 				'ID'           => $post_id,
 				'post_content' => '<h2>Types</h2><img class="wp-image-' . $weak . '" src="' . $up . '/IMG_0001.jpg">'
-					. '<img class="wp-image-' . $good . '" src="' . $up . '/ro-filter.jpg">'
+					. '<img class="wp-image-' . $good . '" src="' . $up . '/ro-filter.jpg" alt="Reverse osmosis filter with five cartridges">'
 					. '<img class="wp-image-' . $deco . '" src="' . $up . '/divider.png">'
 					. '<img src="https://cdn.example.com/x.jpg">',
 			)
@@ -239,6 +245,12 @@ class MetaSuggesterTest extends WP_UnitTestCase {
 							'rationale'     => 'Decorative.',
 						),
 						array(
+							'attachment_id' => $cover,
+							'src'           => '',
+							'alt'           => 'Family filling glasses with filtered water in a bright kitchen',
+							'rationale'     => 'Featured image.',
+						),
+						array(
 							'attachment_id' => 424242,
 							'src'           => 'https://elsewhere.example/a.jpg',
 							'alt'           => 'An image the model invented',
@@ -258,14 +270,14 @@ class MetaSuggesterTest extends WP_UnitTestCase {
 		$result = $this->suggester( $client )->suggest_for_post( $post_id, array( 'image_alt' ), array() );
 
 		$this->assertSame( 'ok', $result['status'] );
-		$this->assertCount( 1, $this->sunk );
+		$this->assertCount( 2, $this->sunk );
 		$this->assertSame(
 			array(
 				'module'         => 'meta',
-				'type'           => 'image_alt',
-				'object_type'    => 'attachment',
-				'object_id'      => $weak,
-				'field'          => 'alt',
+				'type'           => 'post_image_alt',
+				'object_type'    => 'post',
+				'object_id'      => $post_id,
+				'field'          => 'image_alt:' . $weak,
 				'current_value'  => '',
 				'proposed_value' => 'Under-sink water filter installed in a white kitchen cabinet',
 				'rationale'      => 'Describes the scene.',
@@ -274,13 +286,25 @@ class MetaSuggesterTest extends WP_UnitTestCase {
 			),
 			$this->sunk[0]
 		);
+		$this->assertSame(
+			array(
+				'type'           => 'image_alt',
+				'object_type'    => 'attachment',
+				'object_id'      => $cover,
+				'field'          => 'alt',
+				'current_value'  => '',
+				'proposed_value' => 'Family filling glasses with filtered water in a bright kitchen',
+			),
+			array_intersect_key( $this->sunk[1], array_flip( array( 'type', 'object_type', 'object_id', 'field', 'current_value', 'proposed_value' ) ) )
+		);
 		$this->assertSame( array( 'external_image', 'decorative' ), wp_list_pluck( $result['skipped'], 'code' ) );
 
 		$this->assertSame( Schemas::images(), $client->calls[0]['schema'] );
 		$sent = $client->last_user_text();
 		$this->assertStringContainsString( 'attachment_id: ' . $weak, $sent );
 		$this->assertStringContainsString( 'attachment_id: ' . $deco, $sent );
-		$this->assertStringNotContainsString( 'attachment_id: ' . $good, $sent, 'Images with a good alt are not sent by default.' );
+		$this->assertStringContainsString( 'attachment_id: ' . $cover, $sent );
+		$this->assertStringNotContainsString( 'attachment_id: ' . $good, $sent, 'Images with a good inline alt are not sent by default.' );
 	}
 
 	public function test_no_images_means_no_call(): void {

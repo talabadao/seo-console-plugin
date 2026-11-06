@@ -270,6 +270,8 @@ class PostContextTest extends WP_UnitTestCase {
 
 		$this->assertSame( $thumb, $images[3]['attachment_id'] );
 		$this->assertTrue( $images[3]['featured'] );
+		$this->assertFalse( $images[3]['inline'] );
+		$this->assertTrue( $images[0]['inline'] );
 
 		$this->assertFalse( PostContext::is_weak_alt( $images[0]['attachment_alt'], $images[0]['filename'] ) );
 		$this->assertTrue( PostContext::is_weak_alt( '', 'x.jpg' ) );
