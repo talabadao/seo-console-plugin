@@ -237,6 +237,7 @@ Long-running state lives in the module's tables, never in transients.
 | `seoc_ai_site_context` | filter | `array $sections` (`key => markdown string`) | any module → chat/meta (adds e.g. latest audit summary, speed summary) |
 | `seoc_request_ai_suggestions` | action | `array $items` (`[ 'object_type', 'object_id', 'fields' => [...] ]`), `string $origin` | audit → meta (queue AI suggestions) |
 | `seoc_audit_completed` | action | `int $run_id`, `array $summary` | audit → others |
+| `seoc_audit_rule_definitions` | filter | `array $definitions` (`id, severity, category, title, why, how_to_fix, fixable_by, scope, check`) | any module → audit (add/alter audit rules) |
 | `seoc_speed_run_completed` | action | `int $run_id`, `array $summary` | speed → others |
 | `seoc_change_applied` / `seoc_change_reverted` | action | `Change $change` | core → modules (e.g. speed re-test) |
 | `seoc_dashboard_cards` | filter | `array $cards` | modules → Dashboard page |

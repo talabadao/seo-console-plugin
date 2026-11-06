@@ -172,9 +172,8 @@ class AuditModule extends AbstractModule {
 
 	/** {@inheritDoc} */
 	public function on_disable(): void {
-		$queue = $this->plugin()->queue();
-		$queue->unschedule( self::START_HOOK );
-		$queue->unschedule( self::STEP_HOOK );
+		$this->plugin()->queue()->unschedule( self::START_HOOK );
+		$this->unschedule_steps();
 		$active = $this->store->active_run_id();
 		if ( $active ) {
 			$this->crawler()->cancel( $active );
@@ -334,7 +333,17 @@ class AuditModule extends AbstractModule {
 	 */
 	public function cancel_run( int $run_id ): void {
 		$this->crawler()->cancel( $run_id );
-		$this->plugin()->queue()->unschedule( self::STEP_HOOK );
+		$this->unschedule_steps();
+	}
+
+	/**
+	 * Removes every pending step action, whatever its args (Queue::unschedule() with null args only matches
+	 * actions without args, so Action Scheduler's cancel-by-hook is used directly).
+	 */
+	public function unschedule_steps(): void {
+		if ( $this->plugin()->queue()->available() ) {
+			as_unschedule_all_actions( self::STEP_HOOK );
+		}
 	}
 
 	/**

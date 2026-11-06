@@ -134,7 +134,7 @@ class Crawler {
 	 * @return array{run_id: int, status: string, phase: string, pages_found: int, pages_crawled: int, done: bool}
 	 */
 	public function step( int $run_id, float $seconds_budget = 20.0 ): array {
-		$deadline = microtime( true ) + max( 0.1, $seconds_budget );
+		$deadline = microtime( true ) + max( 0.0, $seconds_budget ); // 0 = exactly one unit of work.
 		$run      = $this->store->get_run( $run_id );
 		if ( ! $run || ! in_array( $run['status'], array( 'queued', 'running' ), true ) ) {
 			return $this->progress( $run_id );
