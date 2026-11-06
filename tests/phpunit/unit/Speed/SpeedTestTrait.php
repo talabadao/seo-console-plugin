@@ -37,6 +37,7 @@ trait SpeedTestTrait {
 	 */
 	protected function mock_http( callable $responder ): void {
 		$this->http_requests = array();
+		remove_all_filters( 'pre_http_request' );
 		add_filter(
 			'pre_http_request',
 			function ( $pre, $args, $url ) use ( $responder ) {
