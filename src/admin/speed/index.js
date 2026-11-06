@@ -19,6 +19,7 @@ import {
 	getMaintenance,
 	getOverview,
 	getRecommendations,
+	getRun,
 	getTweaks,
 	getUrls,
 	startRun,
@@ -78,16 +79,42 @@ function App() {
 
 	const onRunDone = useCallback(
 		( run ) => {
-			addNotice(
-				run.status === 'failed' ? 'error' : 'success',
-				run.status === 'failed'
-					? __(
-							'The speed test could not test any page. See the errors in Overview, or try again later.',
-							'seo-console'
-					  )
-					: __( 'Speed test finished.', 'seo-console' )
-			);
 			overview.reload();
+			if ( run.status === 'done' ) {
+				addNotice(
+					'success',
+					__( 'Speed test finished.', 'seo-console' )
+				);
+				return;
+			}
+			getRun( run.id ).then(
+				( data ) => {
+					const failed = ( data.results || [] ).filter(
+						( r ) => r.status === 'failed'
+					);
+					addNotice(
+						run.status === 'failed' ? 'error' : 'warning',
+						[
+							run.status === 'failed'
+								? __(
+										'The speed test could not test any page.',
+										'seo-console'
+								  )
+								: __(
+										'The speed test finished, but some pages could not be tested.',
+										'seo-console'
+								  ),
+							...failed.map(
+								( r ) =>
+									`${ r.label || r.url } (${ r.strategy }): ${
+										r.error || r.error_code
+									}`
+							),
+						].join( ' ' )
+					);
+				},
+				( error ) => addNotice( 'error', error.message )
+			);
 		},
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[ addNotice, overview.reload ]
