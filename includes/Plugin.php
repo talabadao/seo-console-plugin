@@ -75,13 +75,6 @@ final class Plugin {
 	private $booted = false;
 
 	/**
-	 * Whether modules were loaded.
-	 *
-	 * @var bool
-	 */
-	private $modules_loaded = false;
-
-	/**
 	 * Modules keyed by id.
 	 *
 	 * @var ModuleInterface[]
@@ -212,7 +205,6 @@ final class Plugin {
 			$this->modules[ $id ] = $module;
 			$this->settings()->register_module( $id, (array) $module->settings_schema(), $module->default_enabled() );
 		}
-		$this->modules_loaded = true;
 	}
 
 	/**

@@ -82,14 +82,14 @@ final class SuggestionService {
 			return new WP_Error( 'seoc_invalid_suggestion', __( 'Invalid suggestion source.', 'seo-console' ), array( 'status' => 400 ) );
 		}
 		$confidence = null;
-		if ( isset( $data['confidence'] ) && null !== $data['confidence'] ) {
+		if ( isset( $data['confidence'] ) ) {
 			if ( ! is_numeric( $data['confidence'] ) || $data['confidence'] < 0 || $data['confidence'] > 1 ) {
 				return new WP_Error( 'seoc_invalid_suggestion', __( 'Confidence must be between 0 and 1.', 'seo-console' ), array( 'status' => 400 ) );
 			}
 			$confidence = (float) $data['confidence'];
 		}
 
-		if ( isset( $data['meta'] ) && null !== $data['meta'] && ! is_array( $data['meta'] ) ) {
+		if ( isset( $data['meta'] ) && ! is_array( $data['meta'] ) ) {
 			return new WP_Error( 'seoc_invalid_suggestion', __( '"meta" must be an object.', 'seo-console' ), array( 'status' => 400 ) );
 		}
 		$meta = array_merge( isset( $data['meta'] ) ? (array) $data['meta'] : array(), $meta );
@@ -100,7 +100,7 @@ final class SuggestionService {
 
 		$type        = $data['type'];
 		$object_type = $data['object_type'];
-		$object_id   = isset( $data['object_id'] ) && null !== $data['object_id'] ? (int) $data['object_id'] : null;
+		$object_id   = isset( $data['object_id'] ) ? (int) $data['object_id'] : null;
 		$field       = $data['field'];
 		$applier     = $this->changes->applier( $type );
 		if ( null === $applier ) {

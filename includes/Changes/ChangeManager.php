@@ -386,7 +386,7 @@ final class ChangeManager {
 		global $wpdb;
 		$table = Schema::table( 'changes' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table from whitelist.
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $change_id ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE id = %d', $table, $change_id ), ARRAY_A );
 		return $row ? Change::from_row( $row ) : null;
 	}
 
@@ -398,30 +398,32 @@ final class ChangeManager {
 	 */
 	public function query( array $args = array() ): array {
 		global $wpdb;
-		$table  = Schema::table( 'changes' );
+		$table = Schema::table( 'changes' );
+		// Every condition is a literal '%i = %s' / '%i = %d' fragment; columns and values go in as placeholders.
 		$where  = array( '1=1' );
-		$params = array();
+		$params = array( $table );
 		foreach ( array( 'module', 'status', 'type', 'object_type', 'batch_id' ) as $key ) {
-			if ( isset( $args[ $key ] ) && '' !== $args[ $key ] && null !== $args[ $key ] ) {
-				$where[]  = "{$key} = %s";
+			if ( isset( $args[ $key ] ) && '' !== $args[ $key ] ) {
+				$where[]  = '%i = %s';
+				$params[] = $key;
 				$params[] = (string) $args[ $key ];
 			}
 		}
 		foreach ( array( 'object_id', 'suggestion_id' ) as $key ) {
-			if ( isset( $args[ $key ] ) && '' !== $args[ $key ] && null !== $args[ $key ] ) {
-				$where[]  = "{$key} = %d";
+			if ( isset( $args[ $key ] ) && '' !== $args[ $key ] ) {
+				$where[]  = '%i = %d';
+				$params[] = $key;
 				$params[] = (int) $args[ $key ];
 			}
 		}
 		$per_page  = isset( $args['per_page'] ) ? max( 1, min( 100, (int) $args['per_page'] ) ) : 20;
 		$page      = isset( $args['page'] ) ? max( 1, (int) $args['page'] ) : 1;
-		$sql_where = implode( ' AND ', $where );
+		$where_sql = implode( ' AND ', $where );
 
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- custom table from whitelist; placeholders built above.
-		$count_sql = "SELECT COUNT(*) FROM {$table} WHERE {$sql_where}";
-		$total     = (int) $wpdb->get_var( $params ? $wpdb->prepare( $count_sql, $params ) : $count_sql );
-		$rows      = $wpdb->get_results(
-			$wpdb->prepare( "SELECT * FROM {$table} WHERE {$sql_where} ORDER BY id DESC LIMIT %d OFFSET %d", array_merge( $params, array( $per_page, ( $page - 1 ) * $per_page ) ) ),
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $where_sql holds only literal placeholder fragments.
+		$total = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE ' . $where_sql, $params ) );
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare( 'SELECT * FROM %i WHERE ' . $where_sql . ' ORDER BY id DESC LIMIT %d OFFSET %d', array_merge( $params, array( $per_page, ( $page - 1 ) * $per_page ) ) ),
 			ARRAY_A
 		);
 		// phpcs:enable

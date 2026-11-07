@@ -64,7 +64,8 @@ final class Uninstaller {
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery -- uninstall cleanup.
 		$names = $wpdb->get_col(
 			$wpdb->prepare(
-				"SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+				'SELECT option_name FROM %i WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s',
+				$wpdb->options,
 				$wpdb->esc_like( 'seoc_' ) . '%',
 				$wpdb->esc_like( '_transient_seoc_' ) . '%',
 				$wpdb->esc_like( '_transient_timeout_seoc_' ) . '%'
@@ -83,8 +84,8 @@ final class Uninstaller {
 		global $wpdb;
 		$like = $wpdb->esc_like( '_seoc_' ) . '%';
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery -- uninstall cleanup.
-		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE %s", $like ) );
-		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->termmeta} WHERE meta_key LIKE %s", $like ) );
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE meta_key LIKE %s', $wpdb->postmeta, $like ) );
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE meta_key LIKE %s', $wpdb->termmeta, $like ) );
 		// phpcs:enable
 		wp_cache_flush();
 	}
@@ -103,9 +104,9 @@ final class Uninstaller {
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $groups ) ) ) !== $groups ) {
 			return;
 		}
-		$group_id = $wpdb->get_var( $wpdb->prepare( "SELECT group_id FROM {$groups} WHERE slug = %s", Queue::GROUP ) );
+		$group_id = $wpdb->get_var( $wpdb->prepare( 'SELECT group_id FROM %i WHERE slug = %s', $groups, Queue::GROUP ) );
 		if ( $group_id ) {
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$actions} WHERE group_id = %d AND status IN ('pending','in-progress')", (int) $group_id ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE group_id = %d AND status IN ('pending','in-progress')", $actions, (int) $group_id ) );
 		}
 		// phpcs:enable
 	}

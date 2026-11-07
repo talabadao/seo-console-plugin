@@ -60,7 +60,7 @@ final class SuggestionStore {
 		global $wpdb;
 		$table = Schema::table( 'suggestions' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table from whitelist.
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE id = %d', $table, $id ), ARRAY_A );
 		return $row ? $this->decode( $row ) : null;
 	}
 
@@ -79,12 +79,12 @@ final class SuggestionStore {
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table from whitelist.
 		if ( null === $object_id ) {
 			$row = $wpdb->get_row(
-				$wpdb->prepare( "SELECT * FROM {$table} WHERE status = 'pending' AND type = %s AND object_type = %s AND object_id IS NULL AND field = %s ORDER BY id DESC LIMIT 1", $type, $object_type, $field ),
+				$wpdb->prepare( "SELECT * FROM %i WHERE status = 'pending' AND type = %s AND object_type = %s AND object_id IS NULL AND field = %s ORDER BY id DESC LIMIT 1", $table, $type, $object_type, $field ),
 				ARRAY_A
 			);
 		} else {
 			$row = $wpdb->get_row(
-				$wpdb->prepare( "SELECT * FROM {$table} WHERE status = 'pending' AND type = %s AND object_type = %s AND object_id = %d AND field = %s ORDER BY id DESC LIMIT 1", $type, $object_type, $object_id, $field ),
+				$wpdb->prepare( "SELECT * FROM %i WHERE status = 'pending' AND type = %s AND object_type = %s AND object_id = %d AND field = %s ORDER BY id DESC LIMIT 1", $table, $type, $object_type, $object_id, $field ),
 				ARRAY_A
 			);
 		}
@@ -100,16 +100,17 @@ final class SuggestionStore {
 	 */
 	public function query( array $args ): array {
 		global $wpdb;
-		$table                      = Schema::table( 'suggestions' );
-		list( $sql_where, $params ) = $this->where( $args );
-		$per_page                   = isset( $args['per_page'] ) ? max( 1, min( 100, (int) $args['per_page'] ) ) : 20;
-		$page                       = isset( $args['page'] ) ? max( 1, (int) $args['page'] ) : 1;
+		$where  = array( '1=1' );
+		$params = array( Schema::table( 'suggestions' ) );
+		$this->filters( $args, $where, $params );
+		$where_sql = implode( ' AND ', $where );
+		$per_page  = isset( $args['per_page'] ) ? max( 1, min( 100, (int) $args['per_page'] ) ) : 20;
+		$page      = isset( $args['page'] ) ? max( 1, (int) $args['page'] ) : 1;
 
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- custom table from whitelist; placeholders built in where().
-		$count_sql = "SELECT COUNT(*) FROM {$table} WHERE {$sql_where}";
-		$total     = (int) $wpdb->get_var( $params ? $wpdb->prepare( $count_sql, $params ) : $count_sql );
-		$rows      = $wpdb->get_results(
-			$wpdb->prepare( "SELECT * FROM {$table} WHERE {$sql_where} ORDER BY id DESC LIMIT %d OFFSET %d", array_merge( $params, array( $per_page, ( $page - 1 ) * $per_page ) ) ),
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $where_sql holds only literal placeholder fragments (see filters()).
+		$total = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE ' . $where_sql, $params ) );
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare( 'SELECT * FROM %i WHERE ' . $where_sql . ' ORDER BY id DESC LIMIT %d OFFSET %d', array_merge( $params, array( $per_page, ( $page - 1 ) * $per_page ) ) ),
 			ARRAY_A
 		);
 		// phpcs:enable
@@ -132,12 +133,13 @@ final class SuggestionStore {
 	 */
 	public function counts( array $args = array() ): array {
 		global $wpdb;
-		$table = Schema::table( 'suggestions' );
 		unset( $args['status'] );
-		list( $sql_where, $params ) = $this->where( $args );
-		$sql                        = "SELECT status, COUNT(*) AS n FROM {$table} WHERE {$sql_where} GROUP BY status";
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- custom table from whitelist; placeholders built in where().
-		$rows   = $wpdb->get_results( $params ? $wpdb->prepare( $sql, $params ) : $sql, ARRAY_A );
+		$where  = array( '1=1' );
+		$params = array( Schema::table( 'suggestions' ) );
+		$this->filters( $args, $where, $params );
+		$where_sql = implode( ' AND ', $where );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $where_sql holds only literal placeholder fragments (see filters()).
+		$rows   = $wpdb->get_results( $wpdb->prepare( 'SELECT status, COUNT(*) AS n FROM %i WHERE ' . $where_sql . ' GROUP BY status', $params ), ARRAY_A );
 		$counts = array_fill_keys( self::STATUSES, 0 );
 		foreach ( (array) $rows as $row ) {
 			if ( isset( $counts[ $row['status'] ] ) ) {
@@ -155,36 +157,35 @@ final class SuggestionStore {
 	 */
 	public function purge_closed( int $days ): int {
 		global $wpdb;
-		$table  = Schema::table( 'suggestions' );
 		$cutoff = gmdate( 'Y-m-d H:i:s', time() - max( 1, $days ) * DAY_IN_SECONDS );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table from whitelist.
-		return (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE status IN ('rejected','stale','failed') AND updated_at < %s", $cutoff ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- custom table.
+		return (int) $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE status IN ('rejected','stale','failed') AND updated_at < %s", Schema::table( 'suggestions' ), $cutoff ) );
 	}
 
 	/**
-	 * WHERE clause and params.
+	 * Appends filter conditions: each condition is a literal fragment ('%i IN (%s,…)', '%i = %d'); column names and
+	 * values are added to $params in placeholder order.
 	 *
-	 * @param array $args Filters.
-	 * @return array{0: string, 1: array}
+	 * @param array    $args   Filters.
+	 * @param string[] $where  Conditions (by reference).
+	 * @param array    $params Placeholder values (by reference).
 	 */
-	private function where( array $args ): array {
-		$where  = array( '1=1' );
-		$params = array();
+	private function filters( array $args, array &$where, array &$params ): void {
 		foreach ( array( 'status', 'module', 'type', 'object_type', 'field', 'source' ) as $key ) {
 			if ( ! isset( $args[ $key ] ) || '' === $args[ $key ] || 'all' === $args[ $key ] ) {
 				continue;
 			}
-			$values  = (array) $args[ $key ];
-			$where[] = $key . ' IN (' . implode( ',', array_fill( 0, count( $values ), '%s' ) ) . ')';
+			$values   = array_values( (array) $args[ $key ] );
+			$where[]  = '%i IN (' . implode( ',', array_fill( 0, count( $values ), '%s' ) ) . ')';
+			$params[] = $key;
 			foreach ( $values as $value ) {
 				$params[] = (string) $value;
 			}
 		}
-		if ( isset( $args['object_id'] ) && '' !== $args['object_id'] && null !== $args['object_id'] ) {
+		if ( isset( $args['object_id'] ) && '' !== $args['object_id'] ) {
 			$where[]  = 'object_id = %d';
 			$params[] = (int) $args['object_id'];
 		}
-		return array( implode( ' AND ', $where ), $params );
 	}
 
 	/**

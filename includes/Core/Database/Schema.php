@@ -203,7 +203,7 @@ final class Schema {
 		global $wpdb;
 		foreach ( self::existing_tables() as $table ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- names from SHOW TABLES, validated against our prefix.
-			$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
+			$wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $table ) );
 		}
 		delete_option( self::OPTION );
 	}
