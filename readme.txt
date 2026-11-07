@@ -2,7 +2,7 @@
 Contributors: artemisdigital
 Tags: seo, page speed, core web vitals, technical seo, ai
 Requires at least: 6.5
-Tested up to: 6.9
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 0.1.0
 License: GPLv2 or later
@@ -83,6 +83,10 @@ No. AI output only ever becomes a suggestion. A person has to approve it, and ev
 = Something looks wrong on my site. What do I do? =
 
 Turn on Safe Mode in SEO Console → Settings, or add `define( 'SEOC_SAFE_MODE', true );` to wp-config.php. SEO Console then adds nothing to public pages. You can also undo any change from the Change log.
+
+= Why does SEO Console call the Anthropic API directly instead of the WordPress AI Client? =
+
+SEO Console supports WordPress 6.5 and newer, while the WordPress AI Client (`wp_ai_client_prompt()`) arrived in WordPress 7.0. Calling Anthropic directly also gives us structured (JSON schema) answers and a per-site monthly budget. Using the WordPress AI Client when it is available is on our roadmap.
 
 = What happens to my data when I delete the plugin? =
 

@@ -226,6 +226,11 @@ Long-running state lives in the module's tables, never in transients.
 - `AI\Usage` records per call: model, input/output/cache tokens, estimated USD (prices per 1M tokens: Opus 5.5 $4/$20,
   Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50; cache reads 10% of input). When this month's estimate reaches
   `ai_monthly_budget_usd`, calls return `seoc_ai_budget` until next month or until the budget is raised.
+- **Why not the WordPress AI Client:** WordPress 7.0 ships `wp_ai_client_prompt()` (Plugin Check reports
+  `AIProvider.DirectIntegration`). We keep the direct Anthropic integration because the plugin supports WP 6.5+, and
+  we need structured outputs (`output_config.format`), server-side fallbacks, prompt caching and our own monthly budget
+  / usage accounting. Roadmap: when the WP AI Client is available and supports these, route `ClientInterface` through
+  it (modules depend only on the interface, so nothing else changes).
 - **Prompt-injection rule:** site content (page HTML/text, titles, crawled data) is always wrapped as data in a tagged
   block, e.g. `<page_content>…</page_content>`, and the system prompt states it is untrusted data, not instructions.
   The model's output can only become a Suggestion (validated data for a known applier) — never code, never a direct write.

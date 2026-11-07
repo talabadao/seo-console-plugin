@@ -171,14 +171,14 @@ class RobotsAnalyzer {
 	 * @return string[]
 	 */
 	public function important_urls(): array {
-		$urls  = array( $this->scope->home() );
+		$urls = array( $this->scope->home() );
+		// get_posts() suppresses filters by default.
 		$posts = get_posts(
 			array(
-				'post_type'        => array( 'post', 'page' ),
-				'post_status'      => 'publish',
-				'numberposts'      => 6,
-				'fields'           => 'ids',
-				'suppress_filters' => true,
+				'post_type'   => array( 'post', 'page' ),
+				'post_status' => 'publish',
+				'numberposts' => 6,
+				'fields'      => 'ids',
 			)
 		);
 		if ( post_type_exists( 'product' ) ) {
@@ -186,11 +186,10 @@ class RobotsAnalyzer {
 				$posts,
 				get_posts(
 					array(
-						'post_type'        => 'product',
-						'post_status'      => 'publish',
-						'numberposts'      => 3,
-						'fields'           => 'ids',
-						'suppress_filters' => true,
+						'post_type'   => 'product',
+						'post_status' => 'publish',
+						'numberposts' => 3,
+						'fields'      => 'ids',
 					)
 				)
 			);

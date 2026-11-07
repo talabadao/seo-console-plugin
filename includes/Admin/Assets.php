@@ -70,7 +70,7 @@ final class Assets {
 		$handle     = 'seoc-' . $entry;
 
 		wp_enqueue_script( $handle, SEOC_URL . 'build/' . $entry . '.js', $deps, $version, true );
-		wp_set_script_translations( $handle, 'seo-console', SEOC_DIR . 'languages' );
+		wp_set_script_translations( $handle, 'seo-console' );
 		wp_add_inline_script( $handle, 'window.seocConfig = ' . wp_json_encode( $this->config( $page, $pages ) ) . ';', 'before' );
 
 		foreach ( array(
