@@ -63,8 +63,12 @@ class SitemapAnalyzer {
 	public function initial_state( array $robots_sitemaps ): array {
 		$queue = array();
 		foreach ( $robots_sitemaps as $url ) {
+			$url = trim( (string) $url );
+			if ( ! preg_match( '#^https?://#i', $url ) ) {
+				continue; // Only absolute http(s) URLs are valid (and safe to show as links).
+			}
 			$queue[] = array(
-				'url'  => trim( (string) $url ),
+				'url'  => $url,
 				'kind' => 'declared',
 			);
 		}
@@ -82,6 +86,14 @@ class SitemapAnalyzer {
 			'seen'      => array(),
 			'found'     => false,
 			'declared'  => (bool) $robots_sitemaps,
+			'invalid'   => array_values(
+				array_filter(
+					array_map( 'strval', $robots_sitemaps ),
+					static function ( $url ) {
+						return ! preg_match( '#^https?://#i', trim( $url ) );
+					}
+				)
+			),
 			'url_count' => 0,
 			'capped'    => false,
 			'tried'     => array(),
@@ -97,9 +109,10 @@ class SitemapAnalyzer {
 	 * @return bool True when finished.
 	 */
 	public function process( array &$state, callable $on_urls, float $deadline ): bool {
+		$read = 0;
 		while ( $state['queue'] ) {
-			if ( microtime( true ) >= $deadline ) {
-				return false;
+			if ( $read > 0 && microtime( true ) >= $deadline ) {
+				return false; // At least one file per call, so tiny budgets still progress.
 			}
 			$item = array_shift( $state['queue'] );
 			if ( 'probe' === $item['kind'] && $state['found'] ) {
@@ -110,6 +123,7 @@ class SitemapAnalyzer {
 			}
 			$state['seen'][ $item['url'] ] = true;
 			$state['tried'][]              = $item['url'];
+			++$read;
 
 			$file         = $this->read( $item['url'] );
 			$result       = $this->last_read;

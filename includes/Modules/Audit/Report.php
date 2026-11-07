@@ -245,11 +245,12 @@ class Report {
 	 * Issues the Meta module can fix with AI, grouped per post (only pages that map to a post id).
 	 * Payload for the `seoc_request_ai_suggestions` action (ARCHITECTURE §11).
 	 *
-	 * @param int $run_id Run id.
-	 * @param int $limit  Max posts.
+	 * @param int      $run_id   Run id.
+	 * @param int      $limit    Max posts.
+	 * @param string[] $rule_ids Only these rules (empty = every AI-fixable rule).
 	 * @return array[] [ [ 'object_type' => 'post', 'object_id' => int, 'fields' => string[] ] ].
 	 */
-	public function ai_items( int $run_id, int $limit = 500 ): array {
+	public function ai_items( int $run_id, int $limit = 500, array $rule_ids = array() ): array {
 		$rules  = Rules::all();
 		$items  = array();
 		$page   = 1;
@@ -265,6 +266,9 @@ class Report {
 			foreach ( $result['items'] as $issue ) {
 				$rule = isset( $rules[ $issue['rule_id'] ] ) ? $rules[ $issue['rule_id'] ] : null;
 				if ( ! $rule || 'ai' !== $rule->fixable_by || ! isset( self::AI_FIELDS[ $issue['rule_id'] ] ) || $issue['post_id'] <= 0 ) {
+					continue;
+				}
+				if ( $rule_ids && ! in_array( $issue['rule_id'], $rule_ids, true ) ) {
 					continue;
 				}
 				$post_id = (int) $issue['post_id'];

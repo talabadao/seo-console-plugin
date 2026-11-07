@@ -18,5 +18,8 @@ for ( const name of fs.readdirSync( adminDir ) ) {
 module.exports = {
 	...defaultConfig,
 	entry,
-	output: { ...defaultConfig.output, path: path.resolve( __dirname, 'build' ) },
+	output: {
+		...defaultConfig.output,
+		path: path.resolve( __dirname, 'build' ),
+	},
 };

@@ -165,16 +165,18 @@ class MaintenanceTest extends WP_UnitTestCase {
 		$this->assertSame( $stats['complete'] + 3, $after['complete'] );
 		$this->assertSame( $stats['failed'] + 1, $after['failed'] );
 		$this->assertSame( $stats['canceled'] + 1, $after['canceled'] );
-		$this->assertSame( $stats['old_finished'] + 4, $after['old_finished'] );
+		$this->assertSame( $stats['old_finished'] + 3, $after['old_finished'] );
+		$this->assertNotEmpty( $after['groups'] );
+		$this->assertSame( $after['old_finished'], array_sum( wp_list_pluck( $after['groups'], 'old_finished' ) ) );
 
 		$result = $m->cleanup_action_scheduler( 30, 1000 );
-		$this->assertSame( $stats['old_finished'] + 4, $result['removed'] );
-		$this->assertGreaterThanOrEqual( 4, $result['logs_removed'] );
+		$this->assertSame( $stats['old_finished'] + 3, $result['removed'] );
+		$this->assertGreaterThanOrEqual( 3, $result['logs_removed'] );
 		$this->assertFalse( $result['undoable'] );
 		$this->assertSame( 0, $m->action_scheduler_stats()['old_finished'] );
 
-		$left = array_map( 'intval', $wpdb->get_col( "SELECT action_id FROM {$table} WHERE hook = 'seoc_test_hook'" ) );
-		$this->assertSame( array( $ids[4], $ids[5] ), $left, 'Recent and pending actions are kept.' );
+		$left = array_map( 'intval', $wpdb->get_col( "SELECT action_id FROM {$table} WHERE hook = 'seoc_test_hook' ORDER BY action_id" ) );
+		$this->assertSame( array( $ids[2], $ids[4], $ids[5] ), $left, 'Failed, recent and pending actions are kept.' );
 	}
 
 	public function test_report_shape(): void {

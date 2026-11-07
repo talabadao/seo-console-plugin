@@ -625,6 +625,22 @@ final class Rules {
 				},
 			),
 			array(
+				'id'         => 'link_slash_mismatch',
+				'severity'   => 'notice',
+				'category'   => 'links',
+				'title'      => __( 'Links with the wrong trailing slash', 'seo-console' ),
+				'why'        => __( 'These links point to this page without (or with an extra) "/" at the end, so every click goes through a redirect first.', 'seo-console' ),
+				'how_to_fix' => __( 'Edit the listed pages and copy the page address exactly as shown here (menus and buttons are the usual place).', 'seo-console' ),
+				'fixable_by' => 'user',
+				'check'      => static function ( array $p, RuleContext $ctx ) {
+					$found = $ctx->slash_mismatch( (string) $p['url_hash'] );
+					return $found && 'crawled' === ( $p['crawl_state'] ?? '' ) ? array(
+						'count' => (int) $found['count'],
+						'pages' => (array) $found['pages'],
+					) : null;
+				},
+			),
+			array(
 				'id'         => 'orphan_page',
 				'severity'   => 'warning',
 				'category'   => 'links',

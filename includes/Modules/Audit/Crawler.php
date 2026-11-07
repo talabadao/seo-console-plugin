@@ -134,7 +134,7 @@ class Crawler {
 	 * @return array{run_id: int, status: string, phase: string, pages_found: int, pages_crawled: int, done: bool}
 	 */
 	public function step( int $run_id, float $seconds_budget = 20.0 ): array {
-		$deadline = microtime( true ) + max( 0.1, $seconds_budget );
+		$deadline = microtime( true ) + max( 0.0, $seconds_budget ); // 0 = exactly one unit of work.
 		$run      = $this->store->get_run( $run_id );
 		if ( ! $run || ! in_array( $run['status'], array( 'queued', 'running' ), true ) ) {
 			return $this->progress( $run_id );
@@ -151,6 +151,8 @@ class Crawler {
 		$settings = self::sanitize_settings( (array) $run['settings'] );
 		$state    = (array) $run['state'];
 
+		// Each step does at least one unit of work in its first phase, then continues while time is left.
+		$worked = false;
 		if ( 'seed' === $run['phase'] ) {
 			$phase = $this->seed( $run_id, $settings, $state, $deadline );
 			$this->store->update_run(
@@ -165,15 +167,17 @@ class Crawler {
 				return $this->progress( $run_id );
 			}
 			$run['phase'] = $phase;
+			$worked       = true;
 		}
 
-		if ( 'crawl' === $run['phase'] && microtime( true ) < $deadline ) {
+		if ( 'crawl' === $run['phase'] && ( ! $worked || microtime( true ) < $deadline ) ) {
 			$run['phase'] = $this->crawl( $run_id, $settings, $state, $deadline );
 			$this->store->update_run( $run_id, array( 'phase' => $run['phase'] ) );
+			$worked = true;
 		}
 
-		if ( 'finalize' === $run['phase'] && microtime( true ) < $deadline ) {
-			$this->finalize( $run_id, $settings, $state );
+		if ( 'finalize' === $run['phase'] && ( ! $worked || microtime( true ) < $deadline ) ) {
+			$this->finalize( $run_id, $settings, $state, $deadline );
 		}
 		return $this->progress( $run_id );
 	}
@@ -205,14 +209,18 @@ class Crawler {
 	 * @param int $run_id Run id.
 	 */
 	public function progress( int $run_id ): array {
-		$run    = $this->store->get_run( $run_id );
-		$status = $run ? (string) $run['status'] : 'missing';
+		$run      = $this->store->get_run( $run_id );
+		$status   = $run ? (string) $run['status'] : 'missing';
+		$finalize = $run && isset( $run['state']['finalize'] ) ? (array) $run['state']['finalize'] : array();
 		return array(
 			'run_id'        => $run_id,
 			'status'        => $status,
 			'phase'         => $run ? (string) $run['phase'] : '',
 			'pages_found'   => $run ? (int) $run['pages_found'] : 0,
 			'pages_crawled' => $run ? (int) $run['pages_crawled'] : 0,
+			'max_pages'     => $run ? (int) ( $run['settings']['max_pages'] ?? 0 ) : 0,
+			'checked'       => (int) ( $finalize['checked'] ?? 0 ),
+			'to_check'      => (int) ( $finalize['total'] ?? 0 ),
 			'done'          => ! in_array( $status, array( 'queued', 'running' ), true ),
 		);
 	}
@@ -615,7 +623,7 @@ class Crawler {
 	 * Normalises and de-duplicates the links of a page.
 	 *
 	 * @param array[] $raw Links from HtmlAnalyzer.
-	 * @return array[] [ url, anchor, nofollow, internal, in_nav ].
+	 * @return array[] [ url, anchor, nofollow, internal, in_nav, slash_mismatch ].
 	 */
 	private function collect_links( array $raw ): array {
 		$links = array();
@@ -624,16 +632,21 @@ class Crawler {
 			if ( '' === $url ) {
 				continue;
 			}
+			$internal = $this->scope->is_internal( $url );
+			// Same URL as written, except for the trailing slash: the link costs a redirect.
+			$mismatch = $internal && $this->scope->normalize( (string) $link['url'], false ) !== $url;
 			if ( isset( $links[ $url ] ) ) {
-				$links[ $url ]['in_nav'] = $links[ $url ]['in_nav'] || $link['in_nav'];
+				$links[ $url ]['in_nav']         = $links[ $url ]['in_nav'] || $link['in_nav'];
+				$links[ $url ]['slash_mismatch'] = $links[ $url ]['slash_mismatch'] || $mismatch;
 				continue;
 			}
 			$links[ $url ] = array(
-				'url'      => $url,
-				'anchor'   => (string) $link['anchor'],
-				'nofollow' => (bool) $link['nofollow'],
-				'internal' => $this->scope->is_internal( $url ),
-				'in_nav'   => (bool) $link['in_nav'],
+				'url'            => $url,
+				'anchor'         => (string) $link['anchor'],
+				'nofollow'       => (bool) $link['nofollow'],
+				'internal'       => $internal,
+				'in_nav'         => (bool) $link['in_nav'],
+				'slash_mismatch' => $mismatch,
 			);
 			if ( count( $links ) >= 1000 ) {
 				break;
@@ -687,20 +700,77 @@ class Crawler {
 	/* ------------------------------------------------------------- Finalize */
 
 	/**
-	 * Inbound links, rules, score, summary; marks the run done and fires seoc_audit_completed.
+	 * Pages evaluated per finalize chunk.
+	 */
+	private static function finalize_chunk(): int {
+		/**
+		 * Filters how many pages the audit rules evaluate per chunk while finishing a run.
+		 *
+		 * @param int $size Pages per chunk (default 100).
+		 */
+		return max( 1, (int) apply_filters( 'seoc_audit_finalize_chunk', IssueBuilder::CHUNK ) );
+	}
+
+	/**
+	 * Finishing phase, batched across steps: prepare (inbound links, run-level issues) → evaluate page rules in
+	 * chunks while time is left → summary, score, done, seoc_audit_completed.
+	 *
+	 * @param int   $run_id   Run id.
+	 * @param array $settings Settings.
+	 * @param array $state    State (by reference; saved after each chunk).
+	 * @param float $deadline Deadline.
+	 */
+	private function finalize( int $run_id, array $settings, array &$state, float $deadline ): void {
+		$have_sitemap = ! empty( $state['sitemap']['found'] );
+		$builder      = new IssueBuilder( $this->store );
+		$ctx          = null;
+		$worked       = false;
+
+		if ( empty( $state['finalize'] ) ) {
+			$this->store->close_frontier( $run_id );
+			$this->store->compute_inbound( $run_id );
+			$states            = $this->store->count_pages_by_state( $run_id );
+			$ctx               = $builder->context( $run_id, $settings, (array) ( $state['checks'] ?? array() ), $have_sitemap, $this->scope->home() );
+			$state['finalize'] = array(
+				'stage'   => 'pages',
+				'after'   => 0,
+				'checked' => 0,
+				'total'   => (int) ( $states['crawled'] ?? 0 ) + (int) ( $states['blocked'] ?? 0 ) + (int) ( $states['error'] ?? 0 ),
+			);
+			$builder->begin( $run_id, $ctx );
+			$this->store->update_run( $run_id, array( 'state' => $state ) );
+		}
+
+		while ( 'pages' === $state['finalize']['stage'] && ( ! $worked || microtime( true ) < $deadline ) ) {
+			if ( null === $ctx ) {
+				$ctx = $builder->context( $run_id, $settings, (array) ( $state['checks'] ?? array() ), $have_sitemap, $this->scope->home() );
+			}
+			$result                        = $builder->chunk( $run_id, $ctx, (int) $state['finalize']['after'], self::finalize_chunk() );
+			$state['finalize']['after']    = $result['after'];
+			$state['finalize']['checked'] += $result['pages'];
+			if ( $result['done'] ) {
+				$state['finalize']['stage'] = 'summary';
+			}
+			$this->store->update_run( $run_id, array( 'state' => $state ) );
+			$worked = true;
+		}
+
+		if ( 'summary' === $state['finalize']['stage'] && ( ! $worked || microtime( true ) < $deadline ) ) {
+			$this->summarize( $run_id, $settings, $state );
+		}
+	}
+
+	/**
+	 * Cross-check, summary and score; marks the run done and fires seoc_audit_completed.
 	 *
 	 * @param int   $run_id   Run id.
 	 * @param array $settings Settings.
 	 * @param array $state    State.
 	 */
-	private function finalize( int $run_id, array $settings, array $state ): void {
-		$this->store->close_frontier( $run_id );
-		$this->store->compute_inbound( $run_id );
+	private function summarize( int $run_id, array $settings, array $state ): void {
 		$have_sitemap = ! empty( $state['sitemap']['found'] );
-		( new IssueBuilder( $this->store ) )->build( $run_id, $settings, (array) ( $state['checks'] ?? array() ), $have_sitemap, $this->scope->home() );
-
-		$pages = array();
-		$after = 0;
+		$pages        = array();
+		$after        = 0;
 		do {
 			$chunk = $this->store->pages( $run_id, $after, 500, array( 'crawled', 'blocked', 'error' ) );
 			$more  = 500 === count( $chunk );

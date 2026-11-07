@@ -40,11 +40,15 @@ final class RuleContext {
 	/** @var string Home URL (normalised). */
 	private $home;
 
+	/** @var array<string, array> url_hash => [ 'count' => linking pages, 'pages' => example URLs ]. */
+	private $slash_mismatch;
+
 	/**
 	 * Constructor.
 	 *
 	 * @param array[] $pages Visited pages (any keys; indexed by url_hash computed from url when missing).
-	 * @param array   $args  links (page_id => links), nav (url_hash list or map), settings, run_checks, have_sitemap, home.
+	 * @param array   $args  links (page_id => links), nav (url_hash list or map), settings, run_checks, have_sitemap, home,
+	 *                       slash_mismatch (url_hash => [ count, pages ]).
 	 */
 	public function __construct( array $pages = array(), array $args = array() ) {
 		$this->index = array();
@@ -60,11 +64,22 @@ final class RuleContext {
 		if ( $nav && array_keys( $nav ) === range( 0, count( $nav ) - 1 ) ) {
 			$nav = array_fill_keys( $nav, true );
 		}
-		$this->nav          = $nav;
-		$this->settings     = isset( $args['settings'] ) ? (array) $args['settings'] : array();
-		$this->run_checks   = isset( $args['run_checks'] ) ? (array) $args['run_checks'] : array();
-		$this->have_sitemap = ! empty( $args['have_sitemap'] );
-		$this->home         = isset( $args['home'] ) ? (string) $args['home'] : home_url( '/' );
+		$this->nav            = $nav;
+		$this->settings       = isset( $args['settings'] ) ? (array) $args['settings'] : array();
+		$this->run_checks     = isset( $args['run_checks'] ) ? (array) $args['run_checks'] : array();
+		$this->have_sitemap   = ! empty( $args['have_sitemap'] );
+		$this->home           = isset( $args['home'] ) ? (string) $args['home'] : home_url( '/' );
+		$this->slash_mismatch = isset( $args['slash_mismatch'] ) ? (array) $args['slash_mismatch'] : array();
+	}
+
+	/**
+	 * Pages linking to a URL with the wrong trailing slash.
+	 *
+	 * @param string $url_hash Target URL hash.
+	 * @return array|null [ 'count' => int, 'pages' => string[] ].
+	 */
+	public function slash_mismatch( string $url_hash ): ?array {
+		return isset( $this->slash_mismatch[ $url_hash ] ) ? (array) $this->slash_mismatch[ $url_hash ] : null;
 	}
 
 	/**

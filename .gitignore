@@ -7,3 +7,4 @@
 .phpunit.result.cache
 *.log
 .env
+/dev/mu-plugins/zz-*
