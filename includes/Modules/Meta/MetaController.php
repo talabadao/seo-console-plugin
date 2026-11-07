@@ -151,6 +151,14 @@ final class MetaController extends Controller {
 				return $this->respond( new WP_Error( 'seoc_not_found', sprintf( __( 'Post %d not found.', 'seo-console' ), $id ), array( 'status' => 404 ) ) );
 			}
 		}
+		// Check what can be applied before paying for an AI call.
+		$requested = $fields;
+		$fields    = $this->module->applicable_fields( $fields );
+		if ( ! $fields ) {
+			return $this->respond( self::no_seo_plugin_error() );
+		}
+		$note = count( $fields ) < count( $requested ) ? self::no_seo_plugin_error()->get_error_message() : '';
+
 		$unavailable = $this->unavailable_error();
 		if ( $unavailable ) {
 			return $this->respond( $unavailable );
@@ -170,6 +178,8 @@ final class MetaController extends Controller {
 				array(
 					'mode'   => 'queued',
 					'queued' => $queued,
+					'fields' => $fields,
+					'note'   => $note,
 					'status' => $this->status_data(),
 				),
 				202
@@ -189,13 +199,15 @@ final class MetaController extends Controller {
 			array(
 				'mode'        => 'inline',
 				'post_id'     => $ids[0],
+				'fields'      => $fields,
+				'note'        => $note,
 				'status'      => $result['status'],
 				'created'     => count( $result['created'] ),
 				'suggestions' => $suggestions,
 				'rejected'    => $result['rejected'],
 				'skipped'     => $result['skipped'],
 				'errors'      => $result['errors'],
-				'message'     => self::message( $result ),
+				'message'     => trim( self::message( $result ) . ' ' . $note ),
 			)
 		);
 	}
@@ -211,6 +223,9 @@ final class MetaController extends Controller {
 		$post = get_post( $id );
 		if ( ! $post || ! isset( PostsReport::post_types()[ $post->post_type ] ) ) {
 			return $this->respond( new WP_Error( 'seoc_not_found', __( 'Post not found.', 'seo-console' ), array( 'status' => 404 ) ) );
+		}
+		if ( ! $this->module->seo_fields_available() ) {
+			return $this->respond( self::no_seo_plugin_error() );
 		}
 		$unavailable = $this->unavailable_error();
 		if ( $unavailable ) {
@@ -228,9 +243,10 @@ final class MetaController extends Controller {
 		}
 		return $this->respond(
 			array(
-				'post_id'      => $id,
-				'brand_suffix' => $suffix,
-				'options'      => $options,
+				'post_id'               => $id,
+				'brand_suffix'          => $suffix,
+				'brand_suffix_resolved' => $this->module->brand_suffix_resolved( $id, $suffix ),
+				'options'               => $options,
 			)
 		);
 	}
@@ -268,6 +284,7 @@ final class MetaController extends Controller {
 			);
 		}
 		$data['seo_plugin']    = $this->plugin->seo()->active();
+		$data['seo_fields']    = $this->module->seo_fields_available();
 		$data['post_types']    = $types;
 		$data['ai_configured'] = $this->plugin->claude()->is_available();
 		$data['ranges']        = array(
@@ -304,6 +321,19 @@ final class MetaController extends Controller {
 		$code   = $this->plugin->secrets()->has( 'claude_api_key' ) ? 'seoc_ai_budget' : 'seoc_ai_no_key';
 		$mapped = MetaSuggester::map_error( new WP_Error( $code, '' ) );
 		return new WP_Error( $mapped['code'], $mapped['message'], array( 'status' => 'seoc_ai_budget' === $code ? 402 : 400 ) );
+	}
+
+	/**
+	 * Error when titles/descriptions are requested but no SEO plugin can store them.
+	 *
+	 * @return WP_Error
+	 */
+	private static function no_seo_plugin_error(): WP_Error {
+		return new WP_Error(
+			'seoc_no_seo_plugin',
+			__( 'SEO titles and meta descriptions are stored by Rank Math or Yoast SEO, and neither is active. Activate one of them to get title and description suggestions; image alt texts work without them.', 'seo-console' ),
+			array( 'status' => 409 )
+		);
 	}
 
 	/**

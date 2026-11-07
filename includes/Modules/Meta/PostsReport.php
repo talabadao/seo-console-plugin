@@ -143,6 +143,7 @@ final class PostsReport {
 		$resolved = $this->seo->resolved_title( $post->ID );
 		$desc     = $this->seo->get( $post->ID, 'description' );
 		$images   = self::image_alt_counts( $post );
+		$seo_ok   = 'none' !== $this->seo->active();
 		return array(
 			'id'                  => (int) $post->ID,
 			'title'               => html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' ),
@@ -156,12 +157,12 @@ final class PostsReport {
 				'value'    => $title,
 				'resolved' => $resolved,
 				'length'   => mb_strlen( $resolved ),
-				'status'   => '' === trim( $title ) ? 'missing' : self::length_status( mb_strlen( $resolved ), self::TITLE_RANGE ),
+				'status'   => ! $seo_ok ? 'unavailable' : ( '' === trim( $title ) ? 'missing' : self::length_status( mb_strlen( $resolved ), self::TITLE_RANGE ) ),
 			),
 			'description'         => array(
 				'value'  => $desc,
 				'length' => mb_strlen( $desc ),
-				'status' => '' === trim( $desc ) ? 'missing' : self::length_status( mb_strlen( $desc ), self::DESCRIPTION_RANGE ),
+				'status' => ! $seo_ok ? 'unavailable' : ( '' === trim( $desc ) ? 'missing' : self::length_status( mb_strlen( $desc ), self::DESCRIPTION_RANGE ) ),
 			),
 			'images'              => $images,
 			'issues'              => $this->issues( $post, $title, $resolved, $desc, $images ),
@@ -180,10 +181,14 @@ final class PostsReport {
 	 * @return string[]
 	 */
 	public function issues( WP_Post $post, ?string $title = null, ?string $resolved = null, ?string $desc = null, ?array $images = null ): array {
-		$title    = null === $title ? $this->seo->get( $post->ID, 'title' ) : $title;
-		$desc     = null === $desc ? $this->seo->get( $post->ID, 'description' ) : $desc;
-		$images   = null === $images ? self::image_alt_counts( $post ) : $images;
-		$issues   = array();
+		$title  = null === $title ? $this->seo->get( $post->ID, 'title' ) : $title;
+		$desc   = null === $desc ? $this->seo->get( $post->ID, 'description' ) : $desc;
+		$images = null === $images ? self::image_alt_counts( $post ) : $images;
+		$issues = array();
+		if ( 'none' === $this->seo->active() ) {
+			// Without Rank Math or Yoast there are no SEO titles or descriptions to check.
+			return $images['missing_alt'] > 0 ? array( 'missing_alt' ) : array();
+		}
 		$too_long = mb_strlen( $desc ) > self::DESCRIPTION_RANGE[1];
 		if ( '' === trim( $title ) ) {
 			$issues[] = 'missing_title';
