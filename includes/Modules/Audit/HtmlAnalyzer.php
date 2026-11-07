@@ -313,7 +313,15 @@ class HtmlAnalyzer {
 				$facts['og'][ $key ] = AuditStore::truncate( $content, 500 );
 			}
 		}
-		$facts['robots_meta'] = implode( ', ', array_filter( $robots, 'strlen' ) );
+		$facts['robots_meta'] = implode(
+			', ',
+			array_filter(
+				$robots,
+				static function ( $token ) {
+					return '' !== (string) $token;
+				}
+			)
+		);
 	}
 
 	/**
@@ -626,7 +634,14 @@ class HtmlAnalyzer {
 	 * @return string[]
 	 */
 	private static function rel_tokens( string $rel ): array {
-		return array_values( array_filter( preg_split( '/\s+/', strtolower( trim( $rel ) ) ), 'strlen' ) );
+		return array_values(
+			array_filter(
+				(array) preg_split( '/\s+/', strtolower( trim( $rel ) ) ),
+				static function ( $token ) {
+					return '' !== (string) $token;
+				}
+			)
+		);
 	}
 
 	/**

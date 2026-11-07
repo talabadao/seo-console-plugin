@@ -17,3 +17,14 @@ parameters:
 		- vendor/woocommerce/action-scheduler/classes
 	treatPhpDocTypesAsCertain: false
 	reportUnmatchedIgnoredErrors: false
+	ignoreErrors:
+		# Speed tweaks are hooked dynamically: call_user_func( array( $this, 'hook_' . $id ) ) in Tweaks::register().
+		-
+			identifier: method.unused
+			path: includes/Modules/Speed/Tweaks.php
+			message: '#^Method SEOConsole\\Modules\\Speed\\Tweaks::hook_[a-z_]+\(\) is unused\.$#'
+		# $ttfb is written by reference in the 'requests-curl.after_request' listener closure, which PHPStan cannot see.
+		-
+			identifier: notIdentical.alwaysFalse
+			path: includes/Modules/Speed/EnvironmentProbe.php
+			message: '#^Strict comparison using !== between null and null will always evaluate to false\.$#'

@@ -329,7 +329,14 @@ class Url {
 		}
 
 		$relative = substr( $path, strlen( $this->base_path ) );
-		$segments = array_values( array_filter( explode( '/', (string) $relative ), 'strlen' ) );
+		$segments = array_values(
+			array_filter(
+				explode( '/', (string) $relative ),
+				static function ( $segment ) {
+					return '' !== $segment;
+				}
+			)
+		);
 		foreach ( $segments as $segment ) {
 			if ( in_array( $segment, self::SKIP_SEGMENTS, true ) ) {
 				return 'excluded_path';

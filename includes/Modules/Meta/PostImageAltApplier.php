@@ -199,7 +199,7 @@ final class PostImageAltApplier implements ApplierInterface {
 	 */
 	public static function alt_of( string $tag ): string {
 		if ( preg_match( '/\salt\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $tag, $m ) ) {
-			$raw = isset( $m[3] ) && '' !== $m[3] ? $m[3] : ( isset( $m[2] ) && '' !== $m[2] ? $m[2] : $m[1] );
+			$raw = isset( $m[3] ) ? $m[3] : ( isset( $m[2] ) && '' !== $m[2] ? $m[2] : $m[1] );
 			return html_entity_decode( $raw, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 		}
 		return '';
