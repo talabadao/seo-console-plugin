@@ -119,7 +119,7 @@ final class TitleTemplate {
 			return '';
 		}
 		$out = null;
-		if ( 'rankmath' === $plugin && class_exists( '\RankMath\Helper' ) && method_exists( '\RankMath\Helper', 'replace_vars' ) ) {
+		if ( 'rankmath' === $plugin && is_callable( array( '\RankMath\Helper', 'replace_vars' ) ) ) {
 			$out = (string) \RankMath\Helper::replace_vars( $suffix, $post );
 		} elseif ( 'yoast' === $plugin && function_exists( 'wpseo_replace_vars' ) ) {
 			$out = (string) wpseo_replace_vars( $suffix, $post );

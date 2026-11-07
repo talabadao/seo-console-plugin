@@ -99,8 +99,12 @@ final class MetaModule extends AbstractModule {
 				( new MetaController( $plugin, $this ) )->register_routes();
 			}
 		);
-		add_action( self::JOB_HOOK, array( $this, 'run_batch' ) );
-		add_action( self::JOB_HOOK_NEXT, array( $this, 'run_batch' ) );
+		// run_batch() returns a summary for REST/tests; as an action callback the value is discarded.
+		$run_batch = function () {
+			$this->run_batch();
+		};
+		add_action( self::JOB_HOOK, $run_batch );
+		add_action( self::JOB_HOOK_NEXT, $run_batch );
 		add_action( 'seoc_request_ai_suggestions', array( $this, 'on_request' ), 10, 2 );
 		if ( $plugin->settings()->get( 'meta', 'auto_on_publish' ) ) {
 			add_action( 'transition_post_status', array( $this, 'on_publish' ), 10, 3 );

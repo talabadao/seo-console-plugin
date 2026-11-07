@@ -112,7 +112,7 @@ final class Usage {
 		$end   = gmdate( 'Y-m-d H:i:s', strtotime( $start . ' +1 month' ) );
 		$table = Schema::table( 'ai_usage' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table from whitelist.
-		$row    = $wpdb->get_row( $wpdb->prepare( "SELECT COUNT(*) AS calls, COALESCE(SUM(input_tokens + cache_creation_tokens + cache_read_tokens),0) AS input_tokens, COALESCE(SUM(output_tokens),0) AS output_tokens, COALESCE(SUM(cost_usd),0) AS cost FROM {$table} WHERE created_at >= %s AND created_at < %s", $start, $end ), ARRAY_A );
+		$row    = $wpdb->get_row( $wpdb->prepare( 'SELECT COUNT(*) AS calls, COALESCE(SUM(input_tokens + cache_creation_tokens + cache_read_tokens),0) AS input_tokens, COALESCE(SUM(output_tokens),0) AS output_tokens, COALESCE(SUM(cost_usd),0) AS cost FROM %i WHERE created_at >= %s AND created_at < %s', $table, $start, $end ), ARRAY_A );
 		$cost   = $row ? round( (float) $row['cost'], 4 ) : 0.0;
 		$budget = $this->budget();
 		return array(
@@ -160,6 +160,6 @@ final class Usage {
 		$table  = Schema::table( 'ai_usage' );
 		$cutoff = gmdate( 'Y-m-d H:i:s', time() - max( 31, $days ) * DAY_IN_SECONDS );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table from whitelist.
-		return (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE created_at < %s", $cutoff ) );
+		return (int) $wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE created_at < %s', $table, $cutoff ) );
 	}
 }

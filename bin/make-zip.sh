@@ -12,7 +12,7 @@ git ls-files -co --exclude-standard | grep -vE '^(tests|bin|docs|src|dev|\.githu
 done
 cp -r build "$stage/build"
 cp composer.json composer.lock "$stage/"
-(cd "$stage" && composer install --no-dev --prefer-source --no-interaction --quiet --optimize-autoloader && rm -f composer.json composer.lock)
+(cd "$stage" && composer install --no-dev --prefer-source --no-interaction --quiet --optimize-autoloader && rm -f composer.lock)
 # Ship only runtime files of bundled libraries: no VCS metadata, tests, docs or dev tooling (WordPress.org Plugin Check flags them).
 find "$stage/vendor" -mindepth 3 -maxdepth 3 \( -name '.git' -o -name '.github' -o -name 'tests' -o -name 'docs' -o -name 'bin' \) -prune -exec rm -rf {} +
 find "$stage/vendor" -mindepth 3 -maxdepth 3 -type f \( -name '.*' -o -name 'package.json' -o -name 'package-lock.json' -o -name 'composer.lock' -o -name 'phpunit*' -o -name 'phpcs*' -o -name '*.config.js' -o -name 'Gruntfile.js' \) -delete

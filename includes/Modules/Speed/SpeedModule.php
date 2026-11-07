@@ -153,7 +153,12 @@ class SpeedModule extends AbstractModule {
 		add_action( SpeedRunner::HOOK_TEST, array( $runner, 'test_url' ), 10, 2 );
 		add_action( SpeedRunner::HOOK_CRUX, array( $this, 'crux_job' ) );
 		add_action( SpeedRunner::HOOK_HISTORY, array( $this, 'crux_history_job' ) );
-		add_action( SpeedRunner::HOOK_PRUNE, array( $runner, 'prune' ) );
+		add_action(
+			SpeedRunner::HOOK_PRUNE,
+			static function () use ( $runner ) {
+				$runner->prune(); // Returns a summary; discarded as an action callback.
+			}
+		);
 		add_action( SpeedRunner::HOOK_RETEST, array( $runner, 'run_retest' ) );
 		add_action( 'seoc_ensure_jobs', array( $this, 'ensure_jobs' ) );
 

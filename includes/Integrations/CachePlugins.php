@@ -115,9 +115,10 @@ final class CachePlugins {
 		}
 
 		/**
-		 * Fires after SEO Console asked the cache plugins to purge everything.
+		 * Fires after SEO Console asked the cache plugins to purge (everything, or one URL).
 		 *
-		 * @param string[] $purged Plugin ids.
+		 * @param string[]    $purged Plugin ids.
+		 * @param string|null $url    Purged URL, or null for everything.
 		 */
 		do_action( 'seoc_cache_purged', $purged, null );
 		return $purged;

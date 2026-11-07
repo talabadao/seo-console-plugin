@@ -241,21 +241,28 @@ class UrlPicker {
 	 * @return WP_Post|null
 	 */
 	private function first_indexable_post( string $post_type, array $exclude = array() ) {
-		$posts = get_posts(
+		// Excluded ids are skipped in PHP rather than in the query; get_posts() already suppresses filters by default.
+		$exclude = array_flip( array_filter( array_map( 'intval', $exclude ) ) );
+		$posts   = get_posts(
 			array(
-				'post_type'        => $post_type,
-				'post_status'      => 'publish',
-				'has_password'     => false,
-				'numberposts'      => 20,
-				'orderby'          => 'date',
-				'order'            => 'DESC',
-				'post__not_in'     => array_values( array_filter( array_map( 'intval', $exclude ) ) ),
-				'suppress_filters' => true,
-				'no_found_rows'    => true,
+				'post_type'     => $post_type,
+				'post_status'   => 'publish',
+				'has_password'  => false,
+				'numberposts'   => 20 + count( $exclude ),
+				'orderby'       => 'date',
+				'order'         => 'DESC',
+				'no_found_rows' => true,
 			)
 		);
+		$checked = 0;
 		foreach ( $posts as $post ) {
-			if ( $post instanceof WP_Post && ! $this->is_noindex_post( $post ) ) {
+			if ( ! $post instanceof WP_Post || isset( $exclude[ $post->ID ] ) ) {
+				continue;
+			}
+			if ( ++$checked > 20 ) {
+				break;
+			}
+			if ( ! $this->is_noindex_post( $post ) ) {
 				return $post;
 			}
 		}

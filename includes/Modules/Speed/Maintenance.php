@@ -73,15 +73,15 @@ class Maintenance {
 		$values       = self::autoload_values();
 		$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
 
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- live sizes needed; placeholders built from a fixed count.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- live sizes needed; placeholders built from a fixed count.
 		$totals = $wpdb->get_row(
-			$wpdb->prepare( "SELECT COUNT(*) AS cnt, COALESCE(SUM(LENGTH(option_value)), 0) AS bytes FROM {$wpdb->options} WHERE autoload IN ( {$placeholders} )", $values ),
+			$wpdb->prepare( "SELECT COUNT(*) AS cnt, COALESCE(SUM(LENGTH(option_value)), 0) AS bytes FROM %i WHERE autoload IN ( {$placeholders} )", array_merge( array( $wpdb->options ), $values ) ),
 			ARRAY_A
 		);
 		$rows   = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT option_name, LENGTH(option_value) AS bytes, autoload FROM {$wpdb->options} WHERE autoload IN ( {$placeholders} ) ORDER BY bytes DESC LIMIT %d",
-				array_merge( $values, array( max( 1, min( 100, $top ) ) ) )
+				"SELECT option_name, LENGTH(option_value) AS bytes, autoload FROM %i WHERE autoload IN ( {$placeholders} ) ORDER BY bytes DESC LIMIT %d",
+				array_merge( array( $wpdb->options ), $values, array( max( 1, min( 100, $top ) ) ) )
 			),
 			ARRAY_A
 		);
@@ -132,7 +132,8 @@ class Maintenance {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- live count.
 		return (int) $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$wpdb->options} WHERE ( option_name LIKE %s OR option_name LIKE %s ) AND option_value < %d",
+				'SELECT COUNT(*) FROM %i WHERE ( option_name LIKE %s OR option_name LIKE %s ) AND option_value < %d',
+				$wpdb->options,
 				$wpdb->esc_like( '_transient_timeout_' ) . '%',
 				$wpdb->esc_like( '_site_transient_timeout_' ) . '%',
 				time()
@@ -165,7 +166,7 @@ class Maintenance {
 	public function revisions_count(): int {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- live count.
-		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s", 'revision' ) );
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE post_type = %s', $wpdb->posts, 'revision' ) );
 	}
 
 	/**
@@ -218,7 +219,7 @@ class Maintenance {
 		$table              = $tables['actions'];
 
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- table name from $wpdb->prefix + fixed suffix.
-		$rows = $wpdb->get_results( "SELECT status, COUNT(*) AS cnt FROM {$table} GROUP BY status", ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT status, COUNT(*) AS cnt FROM %i GROUP BY status', $table ), ARRAY_A );
 		foreach ( (array) $rows as $row ) {
 			$status = (string) $row['status'];
 			if ( isset( $stats[ $status ] ) && 'available' !== $status ) {
@@ -228,22 +229,30 @@ class Maintenance {
 		$cutoff                = $this->cutoff( $days );
 		$stats['old_finished'] = (int) $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$table} WHERE status IN ( %s, %s ) AND scheduled_date_gmt < %s AND ( last_attempt_gmt IS NULL OR last_attempt_gmt < %s )",
-				array_merge( self::AS_DONE, array( $cutoff, $cutoff ) )
+				'SELECT COUNT(*) FROM %i WHERE status IN ( %s, %s ) AND scheduled_date_gmt < %s AND ( last_attempt_gmt IS NULL OR last_attempt_gmt < %s )',
+				array_merge( array( $table ), self::AS_DONE, array( $cutoff, $cutoff ) )
 			)
 		);
 		if ( $stats['old_finished'] > 0 ) {
 			$groups_table = $wpdb->prefix . 'actionscheduler_groups';
 			$has_groups   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $groups_table ) ) ) === $groups_table;
-			$join         = $has_groups ? "LEFT JOIN {$groups_table} g ON g.group_id = a.group_id" : '';
-			$slug         = $has_groups ? 'COALESCE(g.slug, \'\')' : "''";
-			$rows         = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT {$slug} AS slug, COUNT(*) AS cnt FROM {$table} a {$join} WHERE a.status IN ( %s, %s ) AND a.scheduled_date_gmt < %s AND ( a.last_attempt_gmt IS NULL OR a.last_attempt_gmt < %s ) GROUP BY slug ORDER BY cnt DESC LIMIT 20",
-					array_merge( self::AS_DONE, array( $cutoff, $cutoff ) )
-				),
-				ARRAY_A
-			);
+			if ( $has_groups ) {
+				$rows = $wpdb->get_results(
+					$wpdb->prepare(
+						"SELECT COALESCE(g.slug, '') AS slug, COUNT(*) AS cnt FROM %i a LEFT JOIN %i g ON g.group_id = a.group_id WHERE a.status IN ( %s, %s ) AND a.scheduled_date_gmt < %s AND ( a.last_attempt_gmt IS NULL OR a.last_attempt_gmt < %s ) GROUP BY slug ORDER BY cnt DESC LIMIT 20",
+						array_merge( array( $table, $groups_table ), self::AS_DONE, array( $cutoff, $cutoff ) )
+					),
+					ARRAY_A
+				);
+			} else {
+				$rows = $wpdb->get_results(
+					$wpdb->prepare(
+						"SELECT '' AS slug, COUNT(*) AS cnt FROM %i a WHERE a.status IN ( %s, %s ) AND a.scheduled_date_gmt < %s AND ( a.last_attempt_gmt IS NULL OR a.last_attempt_gmt < %s ) GROUP BY slug ORDER BY cnt DESC LIMIT 20",
+						array_merge( array( $table ), self::AS_DONE, array( $cutoff, $cutoff ) )
+					),
+					ARRAY_A
+				);
+			}
 			foreach ( (array) $rows as $row ) {
 				$stats['groups'][] = array(
 					'group'        => (string) $row['slug'],
@@ -287,8 +296,8 @@ class Maintenance {
 			'intval',
 			(array) $wpdb->get_col(
 				$wpdb->prepare(
-					"SELECT action_id FROM {$table} WHERE status IN ( %s, %s ) AND scheduled_date_gmt < %s AND ( last_attempt_gmt IS NULL OR last_attempt_gmt < %s ) ORDER BY action_id ASC LIMIT %d",
-					array_merge( self::AS_DONE, array( $cutoff, $cutoff, $limit + 1 ) )
+					'SELECT action_id FROM %i WHERE status IN ( %s, %s ) AND scheduled_date_gmt < %s AND ( last_attempt_gmt IS NULL OR last_attempt_gmt < %s ) ORDER BY action_id ASC LIMIT %d',
+					array_merge( array( $table ), self::AS_DONE, array( $cutoff, $cutoff, $limit + 1 ) )
 				)
 			)
 		);
@@ -301,9 +310,9 @@ class Maintenance {
 		}
 		$in = implode( ', ', array_fill( 0, count( $ids ), '%d' ) );
 		if ( null !== $tables['logs'] ) {
-			$result['logs_removed'] = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$tables['logs']} WHERE action_id IN ( {$in} )", $ids ) );
+			$result['logs_removed'] = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE action_id IN ( {$in} )", array_merge( array( $tables['logs'] ), $ids ) ) );
 		}
-		$result['removed'] = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE action_id IN ( {$in} )", $ids ) );
+		$result['removed'] = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE action_id IN ( {$in} )", array_merge( array( $table ), $ids ) ) );
 		// phpcs:enable
 		return $result;
 	}
@@ -316,7 +325,7 @@ class Maintenance {
 	public function orphaned_postmeta_count(): int {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- live count.
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.ID IS NULL" );
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i pm LEFT JOIN %i p ON p.ID = pm.post_id WHERE p.ID IS NULL', $wpdb->postmeta, $wpdb->posts ) );
 	}
 
 	/**
@@ -333,7 +342,9 @@ class Maintenance {
 			'intval',
 			(array) $wpdb->get_col(
 				$wpdb->prepare(
-					"SELECT pm.meta_id FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.ID IS NULL ORDER BY pm.meta_id ASC LIMIT %d",
+					'SELECT pm.meta_id FROM %i pm LEFT JOIN %i p ON p.ID = pm.post_id WHERE p.ID IS NULL ORDER BY pm.meta_id ASC LIMIT %d',
+					$wpdb->postmeta,
+					$wpdb->posts,
 					$limit + 1
 				)
 			)
@@ -347,7 +358,7 @@ class Maintenance {
 		$ids    = array_slice( $ids, 0, $limit );
 		if ( $ids ) {
 			$in                = implode( ', ', array_fill( 0, count( $ids ), '%d' ) );
-			$result['removed'] = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_id IN ( {$in} )", $ids ) );
+			$result['removed'] = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE meta_id IN ( {$in} )", array_merge( array( $wpdb->postmeta ), $ids ) ) );
 		}
 		// phpcs:enable
 		return $result;

@@ -181,7 +181,15 @@ final class SeoPlugins {
 			} else {
 				$parts[0] = $value;
 			}
-			$value = implode( ',', array_filter( $parts, 'strlen' ) );
+			$value = implode(
+				',',
+				array_filter(
+					$parts,
+					static function ( $part ) {
+						return '' !== $part;
+					}
+				)
+			);
 		}
 
 		if ( '' === $value ) {
@@ -219,7 +227,7 @@ final class SeoPlugins {
 				$titles = get_option( 'rank-math-options-titles', array() );
 				$raw    = is_array( $titles ) && ! empty( $titles[ 'pt_' . $post->post_type . '_title' ] ) ? (string) $titles[ 'pt_' . $post->post_type . '_title' ] : '';
 			}
-			if ( '' !== $raw && class_exists( '\RankMath\Helper' ) && method_exists( '\RankMath\Helper', 'replace_vars' ) ) {
+			if ( '' !== $raw && is_callable( array( '\RankMath\Helper', 'replace_vars' ) ) ) {
 				$raw = (string) \RankMath\Helper::replace_vars( $raw, $post );
 			}
 		}

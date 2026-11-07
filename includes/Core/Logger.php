@@ -133,9 +133,8 @@ final class Logger {
 	 */
 	public function recent( array $args = array() ): array {
 		global $wpdb;
-		$table  = Schema::table( 'log' );
 		$where  = array( '1=1' );
-		$params = array();
+		$params = array( Schema::table( 'log' ) );
 		if ( ! empty( $args['level'] ) && isset( self::LEVELS[ $args['level'] ] ) ) {
 			$levels = array();
 			foreach ( self::LEVELS as $name => $rank ) {
@@ -150,11 +149,11 @@ final class Logger {
 			$where[]  = 'module = %s';
 			$params[] = sanitize_key( $args['module'] );
 		}
-		$limit    = isset( $args['limit'] ) ? max( 1, min( 500, (int) $args['limit'] ) ) : 50;
-		$params[] = $limit;
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table from whitelist, placeholders built above.
-		$sql  = $wpdb->prepare( "SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY id DESC LIMIT %d', $params );
-		$rows = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- prepared above.
+		$limit     = isset( $args['limit'] ) ? max( 1, min( 500, (int) $args['limit'] ) ) : 50;
+		$params[]  = $limit;
+		$where_sql = implode( ' AND ', $where );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $where_sql holds only literal placeholder fragments.
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE ' . $where_sql . ' ORDER BY id DESC LIMIT %d', $params ), ARRAY_A );
 		$out  = array();
 		foreach ( (array) $rows as $row ) {
 			$row['id']      = (int) $row['id'];
@@ -172,10 +171,9 @@ final class Logger {
 	 */
 	public function purge( int $days = self::RETENTION_DAYS ): int {
 		global $wpdb;
-		$table  = Schema::table( 'log' );
 		$cutoff = gmdate( 'Y-m-d H:i:s', time() - max( 1, $days ) * DAY_IN_SECONDS );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table from whitelist.
-		$deleted = $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE created_at < %s", $cutoff ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- custom table.
+		$deleted = $wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE created_at < %s', Schema::table( 'log' ), $cutoff ) );
 		return (int) $deleted;
 	}
 

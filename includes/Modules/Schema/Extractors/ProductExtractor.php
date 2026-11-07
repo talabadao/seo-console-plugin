@@ -70,7 +70,7 @@ final class ProductExtractor extends AbstractExtractor {
 				'priceCurrency' => $currency,
 				'availability'  => $availability,
 			);
-		} elseif ( isset( $data['price'] ) && is_numeric( $data['price'] ) && '' !== (string) $data['price'] ) {
+		} elseif ( isset( $data['price'] ) && is_numeric( $data['price'] ) ) {
 			$node['offers'] = array(
 				'@type'           => 'Offer',
 				'price'           => self::price( $data['price'] ),

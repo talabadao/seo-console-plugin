@@ -854,7 +854,7 @@ class PsiParser {
 	 */
 	private static function attr( string $html, string $name ): string {
 		if ( preg_match( '/\s' . preg_quote( $name, '/' ) . '\s*=\s*("([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $html, $m ) ) {
-			$value = isset( $m[4] ) && '' !== $m[4] ? $m[4] : ( isset( $m[3] ) && '' !== $m[3] ? $m[3] : $m[2] );
+			$value = isset( $m[4] ) ? $m[4] : ( isset( $m[3] ) && '' !== $m[3] ? $m[3] : $m[2] );
 			return html_entity_decode( $value, ENT_QUOTES );
 		}
 		return '';
