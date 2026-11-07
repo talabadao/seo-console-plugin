@@ -33,7 +33,7 @@ SEO Console's own admin pages.
 ## 3. Directory layout
 
 ```
-seo-console.php            Bootstrap: version gate, autoloader, Action Scheduler, Plugin::boot on plugins_loaded
+seo-console.php            Bootstrap: version gate, autoloader, Action Scheduler, Plugin::boot on init (priority 0)
 uninstall.php              Calls Core\Uninstaller::run()
 includes/
   Plugin.php               Service locator + boot sequence
@@ -56,7 +56,7 @@ tests/e2e/                 Playwright against bin/dev-site.sh
 
 ## 4. Boot sequence
 
-`plugins_loaded` (priority 5) → `Plugin::boot()`:
+`init` (priority 0) → `Plugin::boot()` (translations may only load at init or later since WP 6.7):
 
 1. Build services (lazily): Settings, Secrets, Logger, Schema (runs migrations when `seoc_db_version` differs),
    ChangeManager, SuggestionService, Queue, SeoPlugins, CachePlugins, ClaudeClient, HealthCheck.

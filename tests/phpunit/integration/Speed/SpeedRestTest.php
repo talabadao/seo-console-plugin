@@ -102,6 +102,9 @@ class SpeedRestTest extends SpeedTestCase {
 	}
 
 	public function test_recommendations_merged_and_grouped(): void {
+		if ( array() !== Plugin::instance()->cache()->detect() ) {
+			$this->markTestSkipped( 'Describes a site without a cache plugin (SEOC_TEST_STUB run).' );
+		}
 		$this->login( 'administrator' );
 		$empty = $this->call( 'GET', '/speed/recommendations' )->get_data();
 		$this->assertSame( array(), $empty['items'] );
@@ -169,6 +172,9 @@ class SpeedRestTest extends SpeedTestCase {
 	}
 
 	public function test_cache_route(): void {
+		if ( array() !== Plugin::instance()->cache()->detect() ) {
+			$this->markTestSkipped( 'Describes a site without a cache plugin (SEOC_TEST_STUB run).' );
+		}
 		$this->login( 'administrator' );
 		$data = $this->call( 'GET', '/speed/cache' )->get_data();
 		$this->assertSame( array(), $data['detected'] );

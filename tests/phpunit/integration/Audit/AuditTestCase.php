@@ -28,6 +28,8 @@ abstract class AuditTestCase extends WP_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 		$this->store = new AuditStore();
+		// These tests describe a site without an SEO plugin; keep that true under SEOC_TEST_STUB runs too.
+		\SEOConsole\Plugin::instance()->settings()->set( \SEOConsole\Core\Settings::GENERAL, 'seo_plugin', 'none' );
 	}
 
 	/** Mini-site routes plus real posts for the post-backed URLs. */

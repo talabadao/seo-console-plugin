@@ -106,7 +106,7 @@ final class Plugin {
 	}
 
 	/**
-	 * plugins_loaded (priority 5) callback.
+	 * init (priority 0) callback.
 	 */
 	public static function boot(): void {
 		$plugin = self::instance();

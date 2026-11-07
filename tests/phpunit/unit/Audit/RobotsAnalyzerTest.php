@@ -22,6 +22,12 @@ class RobotsAnalyzerTest extends WP_UnitTestCase {
 		'uploads'   => 'http://example.org/wp-content/uploads/2024/01/image.jpg',
 	);
 
+	public function set_up() {
+		parent::set_up();
+		// Describes a site without an SEO plugin, also under SEOC_TEST_STUB runs.
+		\SEOConsole\Plugin::instance()->settings()->set( \SEOConsole\Core\Settings::GENERAL, 'seo_plugin', 'none' );
+	}
+
 	private function analyzer(): RobotsAnalyzer {
 		$scope = new Url( 'http://example.org/', true );
 		return new RobotsAnalyzer( $scope, new HttpFetcher( $scope ) );

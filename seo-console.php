@@ -54,4 +54,5 @@ if ( file_exists( SEOC_DIR . 'vendor/woocommerce/action-scheduler/action-schedul
 register_activation_hook( __FILE__, array( \SEOConsole\Plugin::class, 'activate' ) );
 register_deactivation_hook( __FILE__, array( \SEOConsole\Plugin::class, 'deactivate' ) );
 
-add_action( 'plugins_loaded', array( \SEOConsole\Plugin::class, 'boot' ), 5 );
+// Boot on init (priority 0): module settings and labels are translated, and WordPress 6.7+ requires translations to load at init or later.
+add_action( 'init', array( \SEOConsole\Plugin::class, 'boot' ), 0 );
