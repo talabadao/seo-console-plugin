@@ -177,7 +177,7 @@ class SpeedStore {
 		global $wpdb;
 		$table = self::table( 'runs' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE id = %d', $table, $id ), ARRAY_A );
 		return $row ? self::decode_run( $row ) : null;
 	}
 
@@ -194,8 +194,8 @@ class SpeedStore {
 		$per_page = max( 1, min( 100, $per_page ) );
 		$offset   = ( max( 1, $page ) - 1 ) * $per_page;
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
-		$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
-		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} ORDER BY id DESC LIMIT %d OFFSET %d", $per_page, $offset ), ARRAY_A );
+		$total = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $table ) );
+		$rows  = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i ORDER BY id DESC LIMIT %d OFFSET %d', $table, $per_page, $offset ), ARRAY_A );
 		// phpcs:enable
 		return array(
 			'items' => array_map( array( __CLASS__, 'decode_run' ), (array) $rows ),
@@ -215,13 +215,14 @@ class SpeedStore {
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
 		$wpdb->query(
 			$wpdb->prepare(
-				"UPDATE {$table} SET status = 'failed', finished_at = %s, error = %s WHERE status IN ( 'queued', 'running' ) AND created_at < %s",
+				"UPDATE %i SET status = 'failed', finished_at = %s, error = %s WHERE status IN ( 'queued', 'running' ) AND created_at < %s",
+				$table,
 				self::now(),
 				'Timed out: background jobs did not finish within 3 hours.',
 				$stale
 			)
 		);
-		$row = $wpdb->get_row( "SELECT * FROM {$table} WHERE status IN ( 'queued', 'running' ) ORDER BY id DESC LIMIT 1", ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM %i WHERE status IN ( 'queued', 'running' ) ORDER BY id DESC LIMIT 1", $table ), ARRAY_A );
 		// phpcs:enable
 		return $row ? self::decode_run( $row ) : null;
 	}
@@ -237,9 +238,9 @@ class SpeedStore {
 		$table = self::table( 'runs' );
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
 		if ( null === $trigger ) {
-			$row = $wpdb->get_row( "SELECT * FROM {$table} WHERE status IN ( 'done', 'partial' ) ORDER BY id DESC LIMIT 1", ARRAY_A );
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM %i WHERE status IN ( 'done', 'partial' ) ORDER BY id DESC LIMIT 1", $table ), ARRAY_A );
 		} else {
-			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE status IN ( 'done', 'partial' ) AND trigger_source = %s ORDER BY id DESC LIMIT 1", $trigger ), ARRAY_A );
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM %i WHERE status IN ( 'done', 'partial' ) AND trigger_source = %s ORDER BY id DESC LIMIT 1", $table, $trigger ), ARRAY_A );
 		}
 		// phpcs:enable
 		return $row ? self::decode_run( $row ) : null;
@@ -289,7 +290,7 @@ class SpeedStore {
 		global $wpdb;
 		$table = self::table( 'results' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE id = %d', $table, $id ), ARRAY_A );
 		return $row ? self::decode_result( $row ) : null;
 	}
 
@@ -304,7 +305,7 @@ class SpeedStore {
 		global $wpdb;
 		$table = self::table( 'results' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
-		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE run_id = %d ORDER BY id ASC", $run_id ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE run_id = %d ORDER BY id ASC', $table, $run_id ), ARRAY_A );
 		$out  = array();
 		foreach ( (array) $rows as $row ) {
 			if ( ! $with_raw ) {
@@ -325,7 +326,7 @@ class SpeedStore {
 		global $wpdb;
 		$table = self::table( 'results' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
-		$rows   = $wpdb->get_results( $wpdb->prepare( "SELECT status, COUNT(*) AS cnt FROM {$table} WHERE run_id = %d GROUP BY status", $run_id ), ARRAY_A );
+		$rows   = $wpdb->get_results( $wpdb->prepare( 'SELECT status, COUNT(*) AS cnt FROM %i WHERE run_id = %d GROUP BY status', $table, $run_id ), ARRAY_A );
 		$counts = array(
 			'pending' => 0,
 			'retry'   => 0,
@@ -348,7 +349,7 @@ class SpeedStore {
 		global $wpdb;
 		$table = self::table( 'results' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table, no variables.
-		$rows = $wpdb->get_results( "SELECT r.* FROM {$table} r INNER JOIN ( SELECT MAX(id) AS id FROM {$table} WHERE status = 'done' GROUP BY url_hash, strategy ) x ON x.id = r.id ORDER BY r.id ASC", ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT r.* FROM %i r INNER JOIN ( SELECT MAX(id) AS id FROM %i WHERE status = 'done' GROUP BY url_hash, strategy ) x ON x.id = r.id ORDER BY r.id ASC", $table, $table ), ARRAY_A );
 		$keep = null;
 		if ( null !== $urls ) {
 			$keep = array_flip( array_map( array( __CLASS__, 'url_hash' ), $urls ) );
@@ -372,7 +373,7 @@ class SpeedStore {
 		global $wpdb;
 		$table = self::table( 'results' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
-		return (bool) $wpdb->get_var( "SELECT id FROM {$table} WHERE status = 'done' LIMIT 1" );
+		return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM %i WHERE status = 'done' LIMIT 1", $table ) );
 	}
 
 	/**
@@ -390,8 +391,10 @@ class SpeedStore {
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT r.run_id, MIN(r.fetched_at) AS fetched_at, AVG(r.score) AS score, AVG(r.lcp_ms) AS lcp_ms, AVG(r.cls) AS cls, AVG(r.tbt_ms) AS tbt_ms, COUNT(*) AS urls, MAX(u.trigger_source) AS trigger_source, MAX(u.change_id) AS change_id
-				FROM {$results} r LEFT JOIN {$runs} u ON u.id = r.run_id
+				FROM %i r LEFT JOIN %i u ON u.id = r.run_id
 				WHERE r.status = 'done' AND r.strategy = %s GROUP BY r.run_id ORDER BY r.run_id DESC LIMIT %d",
+				$results,
+				$runs,
 				$strategy,
 				max( 1, min( 365, $limit ) )
 			),
@@ -464,7 +467,8 @@ class SpeedStore {
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT fetched_at, data FROM {$table} WHERE target_hash = %s AND kind = %s AND form_factor = %s ORDER BY id DESC LIMIT 1",
+				'SELECT fetched_at, data FROM %i WHERE target_hash = %s AND kind = %s AND form_factor = %s ORDER BY id DESC LIMIT 1',
+				$table,
 				self::url_hash( $target ),
 				$kind,
 				$form_factor
@@ -492,7 +496,7 @@ class SpeedStore {
 		global $wpdb;
 		$table = self::table( 'crux' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom table.
-		$value = $wpdb->get_var( $wpdb->prepare( "SELECT MAX(fetched_at) FROM {$table} WHERE kind = %s", $kind ) );
+		$value = $wpdb->get_var( $wpdb->prepare( 'SELECT MAX(fetched_at) FROM %i WHERE kind = %s', $table, $kind ) );
 		return $value ? (int) strtotime( $value . ' UTC' ) : null;
 	}
 
@@ -509,9 +513,9 @@ class SpeedStore {
 		$results = self::table( 'results' );
 		$crux    = self::table( 'crux' );
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- custom tables.
-		$deleted_results = (int) $wpdb->query( $wpdb->prepare( "DELETE r FROM {$results} r INNER JOIN {$runs} u ON u.id = r.run_id WHERE u.created_at < %s AND u.status NOT IN ( 'queued', 'running' )", $cutoff ) );
-		$deleted_runs    = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$runs} WHERE created_at < %s AND status NOT IN ( 'queued', 'running' )", $cutoff ) );
-		$deleted_crux    = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$crux} WHERE fetched_at < %s", $cutoff ) );
+		$deleted_results = (int) $wpdb->query( $wpdb->prepare( "DELETE r FROM %i r INNER JOIN %i u ON u.id = r.run_id WHERE u.created_at < %s AND u.status NOT IN ( 'queued', 'running' )", $results, $runs, $cutoff ) );
+		$deleted_runs    = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE created_at < %s AND status NOT IN ( 'queued', 'running' )", $runs, $cutoff ) );
+		$deleted_crux    = (int) $wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE fetched_at < %s', $crux, $cutoff ) );
 		// phpcs:enable
 		return array(
 			'runs'    => $deleted_runs,
