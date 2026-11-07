@@ -202,6 +202,16 @@ final class SuggestionService {
 		if ( is_wp_error( $stale ) ) {
 			return $stale;
 		}
+		if ( null !== $edited_value ) {
+			/**
+			 * Filters a value a person edited before it is applied (e.g. a module re-adds a template suffix that
+			 * the UI hides; see suggestion meta `display_suffix`).
+			 *
+			 * @param mixed $edited_value Edited value.
+			 * @param array $row          Suggestion row (decoded).
+			 */
+			$edited_value = apply_filters( 'seoc_suggestion_approve_value', $edited_value, $row );
+		}
 		$value  = null === $edited_value ? $row['proposed_value'] : $edited_value;
 		$change = $this->changes->apply( $this->request_for( $row, $value, null !== $edited_value ) );
 		return $this->record_result( $row, $value, $change );

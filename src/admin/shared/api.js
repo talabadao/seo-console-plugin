@@ -208,7 +208,44 @@ export function normaliseList( raw, adapter = ( x ) => x ) {
 	return { items, total };
 }
 
+/**
+ * Remove a display suffix (e.g. an SEO plugin template ending such as " %sep% %sitename%") from a stored value.
+ *
+ * @param {*}      value  Value.
+ * @param {string} suffix Suffix ('' = none).
+ * @return {*} Value without the suffix (non-strings unchanged).
+ */
+export function stripDisplaySuffix( value, suffix ) {
+	if ( typeof value !== 'string' || ! suffix ) {
+		return value;
+	}
+	const bare = suffix.trim();
+	const trimmed = value.trimEnd();
+	return bare && trimmed.endsWith( bare )
+		? trimmed.slice( 0, -bare.length ).trimEnd()
+		: value;
+}
+
+/**
+ * Suggestion meta conventions understood by the UI:
+ * - display_suffix: hidden from the shown/edited value (the server re-appends it on approve);
+ * - brand_suffix_resolved: what that suffix looks like on the site, used for length counters and previews;
+ * - warnings: [ { code, message } ].
+ *
+ * @param {Object} raw REST item.
+ * @return {Object} Normalised suggestion.
+ */
 export function normaliseSuggestion( raw = {} ) {
+	const meta =
+		raw.meta && typeof raw.meta === 'object' && ! Array.isArray( raw.meta )
+			? raw.meta
+			: null;
+	const suffix =
+		meta && typeof meta.display_suffix === 'string'
+			? meta.display_suffix
+			: '';
+	const value = ( v ) =>
+		v === undefined ? null : stripDisplaySuffix( v, suffix );
 	return {
 		id: toInt( raw.id ),
 		createdAt: str( raw.created_at ),
@@ -225,11 +262,21 @@ export function normaliseSuggestion( raw = {} ) {
 		viewLink: str( raw.view_link || raw.permalink ),
 		field: str( raw.field ),
 		fieldLabel: str( raw.field_label ),
-		currentValue:
-			raw.current_value === undefined ? null : raw.current_value,
-		proposedValue:
-			raw.proposed_value === undefined ? null : raw.proposed_value,
-		finalValue: raw.final_value === undefined ? null : raw.final_value,
+		currentValue: value( raw.current_value ),
+		proposedValue: value( raw.proposed_value ),
+		finalValue: value( raw.final_value ),
+		meta,
+		displaySuffix: suffix,
+		displaySuffixResolved:
+			meta && typeof meta.brand_suffix_resolved === 'string'
+				? meta.brand_suffix_resolved
+				: '',
+		warnings:
+			meta && Array.isArray( meta.warnings )
+				? meta.warnings.filter(
+						( w ) => w && typeof w.message === 'string'
+				  )
+				: [],
 		rationale: str( raw.rationale ),
 		confidence: toNumberOrNull( raw.confidence ),
 		source: str( raw.source ),

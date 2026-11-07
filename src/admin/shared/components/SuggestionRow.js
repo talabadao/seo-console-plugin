@@ -11,6 +11,7 @@ import {
 } from '@wordpress/components';
 import { __, sprintf } from '@wordpress/i18n';
 
+import { stripDisplaySuffix } from '../api';
 import { adminPageUrl } from '../config';
 import {
 	formatDate,
@@ -149,8 +150,15 @@ export default function SuggestionRow( {
 		( item.status === 'stale' && ! err );
 	const liveValue =
 		err && err.data && err.data.current_value !== undefined
-			? err.data.current_value
+			? stripDisplaySuffix( err.data.current_value, item.displaySuffix )
 			: item.currentValue;
+	// What the site will show: the edited text plus the part the SEO plugin adds (e.g. " - Site name").
+	const shownSuffix = item.displaySuffix
+		? item.displaySuffixResolved || ''
+		: '';
+	const fullValue = `${ editValue ?? '' }${
+		kind === 'title' ? shownSuffix : ''
+	}`;
 
 	const textProps = {
 		__nextHasNoMarginBottom: true,
@@ -279,6 +287,19 @@ export default function SuggestionRow( {
 					{ item.rationale }
 				</p>
 			) }
+			{ item.warnings && item.warnings.length > 0 && (
+				<ul className="seoc-plain-list seoc-small">
+					{ item.warnings.map( ( w, i ) => (
+						<li key={ w.code || i }>
+							<StatusBadge
+								status="needs-work"
+								label={ __( 'Check', 'seo-console' ) }
+							/>{ ' ' }
+							{ w.message }
+						</li>
+					) ) }
+				</ul>
+			) }
 			<p className="seoc-muted seoc-small">
 				{ sprintf(
 					/* translators: %s: source and model, e.g. "AI · claude-opus-5-5" */
@@ -314,17 +335,27 @@ export default function SuggestionRow( {
 					) }
 					{ kind && isString && (
 						<>
+							{ kind === 'title' && shownSuffix && (
+								<p className="seoc-muted seoc-small">
+									{ sprintf(
+										/* translators: %s: text the SEO plugin appends to titles, e.g. " - Site name" */
+										__(
+											'Your SEO plugin adds “%s” automatically. The length and preview below include it.',
+											'seo-console'
+										),
+										shownSuffix.trim()
+									) }
+								</p>
+							) }
 							<CharCounter
 								id={ counterId }
 								kind={ kind }
-								value={ editValue ?? '' }
+								value={ fullValue }
 							/>
 							<SerpPreview
 								url={ item.viewLink }
 								title={
-									kind === 'title'
-										? editValue ?? ''
-										: undefined
+									kind === 'title' ? fullValue : undefined
 								}
 								description={
 									kind === 'description'

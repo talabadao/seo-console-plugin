@@ -4,7 +4,6 @@
  */
 import {
 	Button,
-	CheckboxControl,
 	Notice,
 	SearchControl,
 	SelectControl,
@@ -46,9 +45,19 @@ const BADGE = {
 	short: 'needs-work',
 	long: 'needs-work',
 	missing: 'poor',
+	unavailable: 'unknown',
 };
 
-function issueOptions() {
+function issueOptions( seoFields ) {
+	if ( ! seoFields ) {
+		return [
+			{ value: '', label: __( 'All posts', 'seo-console' ) },
+			{
+				value: 'missing_alt',
+				label: __( 'Images without alt text', 'seo-console' ),
+			},
+		];
+	}
 	return [
 		{ value: '', label: __( 'All posts', 'seo-console' ) },
 		{
@@ -72,6 +81,8 @@ function issueOptions() {
 
 function lengthLabel( status, length ) {
 	switch ( status ) {
+		case 'unavailable':
+			return __( 'Needs Rank Math or Yoast', 'seo-console' );
 		case 'missing':
 			return __( 'Not set', 'seo-console' );
 		case 'short':
@@ -87,6 +98,14 @@ function lengthLabel( status, length ) {
 }
 
 function TitleCell( { field } ) {
+	if ( field.status === 'unavailable' ) {
+		return (
+			<StatusBadge
+				status="unknown"
+				label={ lengthLabel( field.status ) }
+			/>
+		);
+	}
 	return (
 		<>
 			<StatusBadge
@@ -113,6 +132,14 @@ function TitleCell( { field } ) {
 }
 
 function DescriptionCell( { field } ) {
+	if ( field.status === 'unavailable' ) {
+		return (
+			<StatusBadge
+				status="unknown"
+				label={ lengthLabel( field.status ) }
+			/>
+		);
+	}
 	return (
 		<>
 			<StatusBadge
@@ -305,10 +332,25 @@ function App() {
 	const aiReady = data ? !! data.ai_configured : config.aiConfigured;
 	const seoPlugin = data ? data.seo_plugin : config.seoPlugin;
 
-	const fieldsFor = ( item ) =>
-		item.images && item.images.missing_alt > 0
+	const seoFields = data ? data.seo_fields !== false : seoPlugin !== 'none';
+	const hasMissingAlt = ( item ) =>
+		!! item.images && item.images.missing_alt > 0;
+	const rowLabel = ( item ) => {
+		if ( rowBusy[ item.id ] ) {
+			return __( 'Asking Claude…', 'seo-console' );
+		}
+		return seoFields
+			? __( 'Suggest with AI', 'seo-console' )
+			: __( 'Suggest alt texts', 'seo-console' );
+	};
+	const fieldsFor = ( item ) => {
+		if ( ! seoFields ) {
+			return hasMissingAlt( item ) ? [ 'image_alt' ] : [];
+		}
+		return hasMissingAlt( item )
 			? [ 'title', 'description', 'image_alt' ]
 			: [ 'title', 'description' ];
+	};
 
 	const suggestOne = async ( item ) => {
 		setRowBusy( ( s ) => ( { ...s, [ item.id ]: true } ) );
@@ -358,9 +400,11 @@ function App() {
 		try {
 			const res = await apiPost( 'meta/suggest', {
 				post_ids: selected,
-				fields: [ 'title', 'description', 'image_alt' ],
+				fields: seoFields
+					? [ 'title', 'description', 'image_alt' ]
+					: [ 'image_alt' ],
 			} );
-			const message = sprintf(
+			const queuedMessage = sprintf(
 				/* translators: %d: number of posts */
 				_n(
 					'%d post queued. Suggestions appear below as each one is done.',
@@ -370,6 +414,9 @@ function App() {
 				),
 				res.queued
 			);
+			const message = res.note
+				? `${ queuedMessage } ${ res.note }`
+				: queuedMessage;
 			addNotice( 'success', message );
 			setAnnounce( message );
 			setSelected( [] );
@@ -436,12 +483,25 @@ function App() {
 				</Card>
 			) }
 
-			{ seoPlugin === 'none' && (
+			{ ! seoFields && (
 				<Notice status="warning" isDismissible={ false }>
-					{ __(
-						'No supported SEO plugin is active. SEO titles and descriptions are stored by Rank Math or Yoast SEO, so they cannot be checked or changed until one of them is active. Image alt texts still work.',
-						'seo-console'
-					) }
+					<p>
+						<strong>
+							{ __(
+								'SEO titles and meta descriptions need Rank Math or Yoast SEO.',
+								'seo-console'
+							) }
+						</strong>{ ' ' }
+						{ __(
+							'Those plugins store the title and description search engines show, and neither is active on this site. SEO Console does not add its own, so it cannot check or suggest them until you activate one. Image alt texts work without them.',
+							'seo-console'
+						) }
+					</p>
+					<p>
+						<a href={ `${ config.adminUrl }plugins.php` }>
+							{ __( 'Go to Plugins', 'seo-console' ) }
+						</a>
+					</p>
 				</Notice>
 			) }
 
@@ -454,7 +514,7 @@ function App() {
 						__next40pxDefaultSize
 						label={ __( 'Show', 'seo-console' ) }
 						value={ filters.issue }
-						options={ issueOptions() }
+						options={ issueOptions( seoFields ) }
 						onChange={ ( v ) => changeFilters( { issue: v } ) }
 					/>
 					<SelectControl
@@ -560,20 +620,28 @@ function App() {
 							<thead>
 								<tr>
 									<td className="check-column">
-										<CheckboxControl
-											__nextHasNoMarginBottom
-											label={ __(
-												'Select all on this page',
-												'seo-console'
-											) }
-											hideLabelFromVision
+										<input
+											type="checkbox"
+											id="seoc-meta-select-all"
 											checked={ allOnPage }
-											onChange={ ( on ) =>
+											onChange={ ( e ) =>
 												items.forEach( ( i ) =>
-													toggle( i.id, on )
+													toggle(
+														i.id,
+														e.target.checked
+													)
 												)
 											}
 										/>
+										<label
+											htmlFor="seoc-meta-select-all"
+											className="screen-reader-text"
+										>
+											{ __(
+												'Select all on this page',
+												'seo-console'
+											) }
+										</label>
 									</td>
 									<th scope="col">
 										{ __( 'Post', 'seo-console' ) }
@@ -607,9 +675,24 @@ function App() {
 											scope="row"
 											className="check-column"
 										>
-											<CheckboxControl
-												__nextHasNoMarginBottom
-												label={ sprintf(
+											<input
+												type="checkbox"
+												id={ `seoc-meta-select-${ item.id }` }
+												checked={ selected.includes(
+													item.id
+												) }
+												onChange={ ( e ) =>
+													toggle(
+														item.id,
+														e.target.checked
+													)
+												}
+											/>
+											<label
+												htmlFor={ `seoc-meta-select-${ item.id }` }
+												className="screen-reader-text"
+											>
+												{ sprintf(
 													/* translators: %s: post title */
 													__(
 														'Select %s',
@@ -617,14 +700,7 @@ function App() {
 													),
 													item.title
 												) }
-												hideLabelFromVision
-												checked={ selected.includes(
-													item.id
-												) }
-												onChange={ ( on ) =>
-													toggle( item.id, on )
-												}
-											/>
+											</label>
 										</th>
 										<td>
 											<strong>
@@ -701,18 +777,11 @@ function App() {
 												isBusy={ !! rowBusy[ item.id ] }
 												disabled={
 													! aiReady ||
-													!! rowBusy[ item.id ]
+													!! rowBusy[ item.id ] ||
+													! fieldsFor( item ).length
 												}
 											>
-												{ rowBusy[ item.id ]
-													? __(
-															'Asking Claude…',
-															'seo-console'
-													  )
-													: __(
-															'Suggest with AI',
-															'seo-console'
-													  ) }
+												{ rowLabel( item ) }
 											</Button>
 										</td>
 									</tr>

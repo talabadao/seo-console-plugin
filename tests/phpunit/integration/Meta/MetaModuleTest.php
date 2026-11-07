@@ -119,8 +119,10 @@ class MetaModuleTest extends ModuleTestCase {
 		// Yoast's default title template ends with the site name, so the stored title keeps that ending.
 		$this->assertSame(
 			array(
-				'warnings'     => array(),
-				'brand_suffix' => ' %%sep%% %%sitename%%',
+				'warnings'              => array(),
+				'brand_suffix'          => ' %%sep%% %%sitename%%',
+				'display_suffix'        => ' %%sep%% %%sitename%%',
+				'brand_suffix_resolved' => ' - Aqua Shop',
 			),
 			$data['suggestions'][0]['meta']
 		);
@@ -155,6 +157,112 @@ class MetaModuleTest extends ModuleTestCase {
 
 		Plugin::instance()->settings()->set( 'meta', 'brand_appended', 'no' );
 		$this->assertSame( '', $this->module()->brand_suffix( $post_id ) );
+	}
+
+	public function test_edited_title_gets_the_hidden_suffix_back_on_approve(): void {
+		$this->login( 'administrator' );
+		$post_id               = $this->post();
+		$this->client->answers = array( self::answer( array( 'title' => 'Water Filter Guide: Choose the Best One' ) ) );
+		$data                  = $this->call(
+			'POST',
+			'/meta/suggest',
+			array(
+				'post_ids' => array( $post_id ),
+				'fields'   => array( 'title' ),
+			)
+		)->get_data();
+		$id                    = $data['suggestions'][0]['id'];
+
+		// The UI sends the edited text without the suffix it hides.
+		$response = $this->call( 'POST', '/suggestions/' . $id . '/approve', array( 'value' => 'Edited water filter guide' ) );
+		$this->assertSame( 200, $response->get_status(), wp_json_encode( $response->get_data() ) );
+		$this->assertSame( 'Edited water filter guide %%sep%% %%sitename%%', get_post_meta( $post_id, '_yoast_wpseo_title', true ) );
+
+		// A value that already ends with the suffix is not doubled; other modules are untouched.
+		$row = array(
+			'module' => 'meta',
+			'meta'   => array( 'display_suffix' => ' %sep% %sitename%' ),
+		);
+		$this->assertSame( 'A %sep% %sitename%', $this->module()->restore_display_suffix( 'A %sep% %sitename%', $row ) );
+		$this->assertSame( 'A %sep% %sitename%', $this->module()->restore_display_suffix( 'A ', $row ) );
+		$this->assertSame( 'A', $this->module()->restore_display_suffix( 'A', array( 'module' => 'schema' ) + $row ) );
+	}
+
+	public function test_resolved_suffix_uses_plugin_separator(): void {
+		$post = get_post( $this->post() );
+		update_option( 'rank-math-options-titles', array( 'title_separator' => '|' ) );
+		$this->assertSame( ' | Aqua Shop', \SEOConsole\Modules\Meta\TitleTemplate::resolve_suffix( 'rankmath', ' %sep% %sitename%', $post ) );
+		update_option( 'wpseo_titles', array( 'separator' => 'sc-ndash' ) );
+		$this->assertSame( ' – Aqua Shop', \SEOConsole\Modules\Meta\TitleTemplate::resolve_suffix( 'yoast', ' %%sep%% %%sitename%%', $post ) );
+		$this->assertSame( ' Aqua Shop', \SEOConsole\Modules\Meta\TitleTemplate::resolve_suffix( 'yoast', ' %%page%% %%sitename%%', $post ) );
+		$this->assertSame( '', \SEOConsole\Modules\Meta\TitleTemplate::resolve_suffix( 'yoast', '', $post ) );
+	}
+
+	public function test_without_seo_plugin_titles_are_skipped_before_any_ai_call(): void {
+		$this->login( 'administrator' );
+		$this->force_seo_plugin( 'none' );
+		$post_id = $this->post();
+
+		$response = $this->call( 'POST', '/meta/suggest', array( 'post_ids' => array( $post_id ) ) );
+		$this->assertSame( 409, $response->get_status() );
+		$this->assertSame( 'seoc_no_seo_plugin', $response->get_data()['code'] );
+		$this->assertSame( 409, $this->call( 'POST', '/meta/alternatives', array( 'post_id' => $post_id ) )->get_status() );
+		$this->assertSame( array(), $this->client->calls );
+
+		// Image alt texts still work, with a note about the skipped fields.
+		$att = self::factory()->attachment->create_object( 'IMG_9.jpg', $post_id, array( 'post_mime_type' => 'image/jpeg' ) );
+		wp_update_post(
+			array(
+				'ID'           => $post_id,
+				'post_content' => '<img class="wp-image-' . $att . '" src="http://example.org/wp-content/uploads/IMG_9.jpg">',
+			)
+		);
+		$this->client->answers = array(
+			array(
+				'images' => array(
+					array(
+						'attachment_id' => $att,
+						'src'           => '',
+						'alt'           => 'Water filter cartridges laid out on a kitchen counter',
+						'rationale'     => 'Describes it.',
+					),
+				),
+			),
+		);
+		$data = $this->call(
+			'POST',
+			'/meta/suggest',
+			array(
+				'post_ids' => array( $post_id ),
+				'fields'   => array( 'title', 'description', 'image_alt' ),
+			)
+		)->get_data();
+		$this->assertSame( array( 'image_alt' ), $data['fields'] );
+		$this->assertSame( 1, $data['created'] );
+		$this->assertStringContainsString( 'Rank Math or Yoast SEO', $data['message'] );
+		$this->assertCount( 1, $this->client->calls );
+		$this->assertSame( \SEOConsole\Modules\Meta\Schemas::images(), $this->client->calls[0]['schema'] );
+
+		// The posts report and dashboard card say why, instead of "not set".
+		$posts = $this->call( 'GET', '/meta/posts', array(), array( 'per_page' => 50 ) )->get_data();
+		$this->assertFalse( $posts['seo_fields'] );
+		$row = wp_list_filter( $posts['items'], array( 'id' => $post_id ) );
+		$row = reset( $row );
+		$this->assertSame( 'unavailable', $row['seo_title']['status'] );
+		$this->assertSame( 'unavailable', $row['description']['status'] );
+		$this->assertNotContains( 'missing_title', $row['issues'] );
+		$card = wp_list_filter( apply_filters( 'seoc_dashboard_cards', array() ), array( 'id' => 'meta-coverage' ) );
+		$this->assertSame( 'unknown', reset( $card )['status'] );
+	}
+
+	public function test_batch_without_seo_plugin_makes_no_title_call(): void {
+		$this->force_seo_plugin( 'none' );
+		$this->client->answers = array( self::answer() );
+		$this->module()->enqueue( array( array( 'object_id' => $this->post() ) ), 'audit' );
+		$summary = $this->module()->run_batch();
+		$this->assertSame( 1, $summary['processed'] );
+		$this->assertSame( array(), $this->client->calls );
+		$this->assertSame( 1, $this->module()->store()->summary()['done'] );
 	}
 
 	public function test_suggest_without_key_or_unknown_post(): void {

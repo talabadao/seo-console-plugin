@@ -87,6 +87,77 @@ final class TitleTemplate {
 		return '';
 	}
 
+	/** Yoast separator option values → characters. */
+	const YOAST_SEPARATORS = array(
+		'sc-dash'   => '-',
+		'sc-ndash'  => '–',
+		'sc-mdash'  => '—',
+		'sc-colon'  => ':',
+		'sc-middot' => '·',
+		'sc-bull'   => '•',
+		'sc-star'   => '*',
+		'sc-smstar' => '⋆',
+		'sc-pipe'   => '|',
+		'sc-tilde'  => '~',
+		'sc-laquo'  => '«',
+		'sc-raquo'  => '»',
+		'sc-lt'     => '<',
+		'sc-gt'     => '>',
+	);
+
+	/**
+	 * The suffix as visitors see it, e.g. " - Aqua Shop": template variables replaced through the SEO plugin when it
+	 * offers a function for it, otherwise with its separator setting (default "-") and the site name.
+	 *
+	 * @param string  $plugin 'rankmath'|'yoast'|'none'.
+	 * @param string  $suffix Suffix with template variables.
+	 * @param WP_Post $post   Post.
+	 * @return string
+	 */
+	public static function resolve_suffix( string $plugin, string $suffix, WP_Post $post ): string {
+		if ( '' === trim( $suffix ) ) {
+			return '';
+		}
+		$out = null;
+		if ( 'rankmath' === $plugin && class_exists( '\RankMath\Helper' ) && method_exists( '\RankMath\Helper', 'replace_vars' ) ) {
+			$out = (string) \RankMath\Helper::replace_vars( $suffix, $post );
+		} elseif ( 'yoast' === $plugin && function_exists( 'wpseo_replace_vars' ) ) {
+			$out = (string) wpseo_replace_vars( $suffix, $post );
+		}
+		if ( null === $out ) {
+			$site = wp_specialchars_decode( (string) get_bloginfo( 'name' ), ENT_QUOTES );
+			$out  = str_replace(
+				array( '%%sep%%', '%sep%', '%%sitename%%', '%sitename%' ),
+				array( self::separator( $plugin ), self::separator( $plugin ), $site, $site ),
+				$suffix
+			);
+		}
+		// Anything the plugin could not replace is not shown.
+		$out = (string) preg_replace( '/%%?[a-z_]+%%?/i', '', $out );
+		$out = trim( (string) preg_replace( '/\s+/u', ' ', wp_strip_all_tags( html_entity_decode( $out, ENT_QUOTES, 'UTF-8' ) ) ) );
+		return '' === $out ? '' : ' ' . $out;
+	}
+
+	/**
+	 * Title separator configured in the SEO plugin.
+	 *
+	 * @param string $plugin 'rankmath'|'yoast'.
+	 * @return string
+	 */
+	public static function separator( string $plugin ): string {
+		if ( 'rankmath' === $plugin ) {
+			$titles = get_option( 'rank-math-options-titles', array() );
+			$sep    = is_array( $titles ) && isset( $titles['title_separator'] ) ? trim( html_entity_decode( (string) $titles['title_separator'], ENT_QUOTES, 'UTF-8' ) ) : '';
+			return '' === $sep ? '-' : $sep;
+		}
+		if ( 'yoast' === $plugin ) {
+			$titles = get_option( 'wpseo_titles', array() );
+			$key    = is_array( $titles ) && isset( $titles['separator'] ) ? (string) $titles['separator'] : '';
+			return isset( self::YOAST_SEPARATORS[ $key ] ) ? self::YOAST_SEPARATORS[ $key ] : '-';
+		}
+		return '-';
+	}
+
 	/**
 	 * Removes the suffix from a stored title, giving the text a person (or the AI) sees as "the title".
 	 *

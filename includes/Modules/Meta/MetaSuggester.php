@@ -64,7 +64,9 @@ final class MetaSuggester {
 	 * @param array            $options   model (string, recorded on suggestions), brand_appended (bool), brand (string),
 	 *                                    current_provider (callable( int $post_id ): array — current SEO values for batch
 	 *                                    items), image_scope ('missing'|'all'), max_images (int), max_attempts (int),
-	 *                                    rationale_language (string), clock (callable(): float, for tests).
+	 *                                    rationale_language (string), clock (callable(): float, for tests),
+	 *                                    seo_fields (bool, false when no SEO plugin can store titles/descriptions:
+	 *                                    those fields are skipped without calling the AI).
 	 * @param PostContext|null $context   Context builder.
 	 * @param Validator|null   $validator Validator.
 	 */
@@ -83,6 +85,7 @@ final class MetaSuggester {
 				'max_attempts'       => 3,
 				'rationale_language' => '',
 				'clock'              => null,
+				'seo_fields'         => true,
 			)
 		);
 		$this->context   = $context ? $context : new PostContext();
@@ -134,6 +137,17 @@ final class MetaSuggester {
 		}
 
 		$meta_fields = array_values( array_intersect( array( 'title', 'description' ), $fields ) );
+		if ( $meta_fields && ! $this->options['seo_fields'] ) {
+			foreach ( $meta_fields as $field ) {
+				$result['skipped'][] = array(
+					'field'     => $field,
+					'object_id' => $post_id,
+					'code'      => 'no_seo_plugin',
+					'message'   => __( 'SEO titles and descriptions need Rank Math or Yoast SEO, so they were skipped.', 'seo-console' ),
+				);
+			}
+			$meta_fields = array();
+		}
 		if ( $meta_fields ) {
 			$result = $this->suggest_meta( $result, $context, $meta_fields, $current );
 			if ( $result['stop'] ) {

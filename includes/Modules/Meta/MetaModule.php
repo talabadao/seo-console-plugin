@@ -107,6 +107,7 @@ final class MetaModule extends AbstractModule {
 		}
 		add_filter( 'seoc_ai_site_context', array( $this, 'site_context' ) );
 		add_filter( 'seoc_dashboard_cards', array( $this, 'dashboard_card' ) );
+		add_filter( 'seoc_suggestion_approve_value', array( $this, 'restore_display_suffix' ), 10, 2 );
 		foreach ( array( 'save_post', 'deleted_post', 'seoc_change_applied', 'seoc_change_reverted' ) as $hook ) {
 			add_action( $hook, array( PostsReport::class, 'flush' ) );
 		}
@@ -169,6 +170,7 @@ final class MetaModule extends AbstractModule {
 				'model'            => (string) $plugin->settings()->get( 'general', 'ai_model' ),
 				'image_scope'      => (string) $plugin->settings()->get( 'meta', 'image_scope' ),
 				'current_provider' => array( $this, 'current_values' ),
+				'seo_fields'       => $this->seo_fields_available(),
 			)
 		);
 	}
@@ -187,9 +189,74 @@ final class MetaModule extends AbstractModule {
 			if ( '' !== $suffix ) {
 				$suggestion['proposed_value'] .= $suffix;
 				$meta['brand_suffix']          = $suffix;
+				// The UI hides display_suffix from the editable text and shows brand_suffix_resolved instead.
+				$meta['display_suffix']        = $suffix;
+				$meta['brand_suffix_resolved'] = $this->brand_suffix_resolved( (int) $suggestion['object_id'], $suffix );
 			}
 		}
 		return $this->plugin()->suggestions()->create( $suggestion, $meta );
+	}
+
+	/**
+	 * seoc_suggestion_approve_value: an edited title arrives without the hidden template suffix; put it back.
+	 *
+	 * @param mixed $value Edited value.
+	 * @param array $row   Suggestion row (decoded).
+	 * @return mixed
+	 */
+	public function restore_display_suffix( $value, $row ) {
+		if ( ! is_string( $value ) || ! is_array( $row ) || 'meta' !== ( isset( $row['module'] ) ? $row['module'] : '' ) ) {
+			return $value;
+		}
+		$suffix = isset( $row['meta']['display_suffix'] ) && is_string( $row['meta']['display_suffix'] ) ? $row['meta']['display_suffix'] : '';
+		if ( '' === trim( $suffix ) || '' === trim( $value ) ) {
+			return $value;
+		}
+		$value = rtrim( $value );
+		$bare  = ltrim( $suffix );
+		if ( substr( $value, -strlen( $bare ) ) === $bare ) {
+			return $value; // Someone typed it in themselves.
+		}
+		return $value . $suffix;
+	}
+
+	/**
+	 * The brand suffix as visitors see it (" - Aqua Shop").
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $suffix  Suffix with template variables (computed when null).
+	 * @return string
+	 */
+	public function brand_suffix_resolved( int $post_id, ?string $suffix = null ): string {
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			return '';
+		}
+		$suffix = null === $suffix ? $this->brand_suffix( $post_id ) : $suffix;
+		return TitleTemplate::resolve_suffix( $this->plugin()->seo()->active(), $suffix, $post );
+	}
+
+	/**
+	 * Whether SEO titles and descriptions can be written (Rank Math or Yoast active).
+	 *
+	 * @return bool
+	 */
+	public function seo_fields_available(): bool {
+		return 'none' !== $this->plugin()->seo()->active();
+	}
+
+	/**
+	 * Requested fields that can actually be applied now (title/description need an SEO plugin).
+	 *
+	 * @param string[] $fields Fields.
+	 * @return string[]
+	 */
+	public function applicable_fields( array $fields ): array {
+		$fields = array_values( array_intersect( MetaSuggester::FIELDS, $fields ) );
+		if ( ! $this->seo_fields_available() ) {
+			$fields = array_values( array_diff( $fields, array( 'title', 'description' ) ) );
+		}
+		return $fields;
 	}
 
 	/**
@@ -364,14 +431,18 @@ final class MetaModule extends AbstractModule {
 	public function site_context( $sections ): array {
 		$sections = is_array( $sections ) ? $sections : array();
 		$c        = $this->report()->coverage();
-		$lines    = array(
+		if ( 'none' === $c['seo_plugin'] ) {
+			$sections['meta'] = sprintf( "No SEO plugin (Rank Math or Yoast SEO) is active, so SEO titles and meta descriptions cannot be checked or set.\n- Published posts/pages with images missing alt text: %d", $c['missing_alt'] );
+			return $sections;
+		}
+		$lines  = array(
 			sprintf( 'SEO meta coverage of %d published posts/pages%s (SEO plugin: %s):', $c['posts'], $c['scan_limited'] ? ' (the ' . $c['scanned'] . ' most recently modified checked)' : '', $c['seo_plugin'] ),
 			sprintf( '- Without a custom SEO title: %d', $c['missing_title'] ),
 			sprintf( '- Without a meta description: %d', $c['missing_description'] ),
 			sprintf( '- Title over 60 or description over 160 characters: %d', $c['too_long'] ),
 			sprintf( '- With images missing alt text: %d', $c['missing_alt'] ),
 		);
-		$counts   = $this->plugin()->suggestions()->store()->counts( array( 'module' => 'meta' ) );
+		$counts = $this->plugin()->suggestions()->store()->counts( array( 'module' => 'meta' ) );
 		if ( ! empty( $counts['pending'] ) ) {
 			$lines[] = sprintf( '- Meta suggestions waiting for review: %d', (int) $counts['pending'] );
 		}
@@ -386,8 +457,21 @@ final class MetaModule extends AbstractModule {
 	 * @return array
 	 */
 	public function dashboard_card( $cards ): array {
-		$cards   = is_array( $cards ) ? $cards : array();
-		$c       = $this->report()->coverage();
+		$cards = is_array( $cards ) ? $cards : array();
+		$c     = $this->report()->coverage();
+		if ( 'none' === $c['seo_plugin'] ) {
+			$cards[] = array(
+				'id'          => 'meta-coverage',
+				'title'       => __( 'SEO titles & descriptions', 'seo-console' ),
+				'label'       => __( 'Posts missing a title or description', 'seo-console' ),
+				'value'       => null,
+				'status'      => 'unknown',
+				'description' => __( 'Needs Rank Math or Yoast SEO: they store SEO titles and descriptions.', 'seo-console' ),
+				'link'        => admin_url( 'admin.php?page=seo-console-meta' ),
+				'linkLabel'   => __( 'Open SEO Meta', 'seo-console' ),
+			);
+			return $cards;
+		}
 		$missing = max( $c['missing_title'], $c['missing_description'] );
 		$status  = 0 === $c['posts'] ? 'unknown' : ( 0 === $missing ? 'good' : ( $missing > $c['posts'] / 4 ? 'poor' : 'needs-work' ) );
 		$cards[] = array(
