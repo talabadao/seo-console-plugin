@@ -350,7 +350,8 @@ class ModuleTest extends AuditTestCase {
 		$this->mini_site();
 		$this->admin();
 
-		// No finished run / meta off / no AI.
+		// No finished run / meta off / no AI. The real Meta module is enabled by default on a full build.
+		Plugin::instance()->settings()->set_enabled( 'meta', false );
 		$this->assertSame( 'seoc_meta_disabled', $this->call( 'POST', '/audit/ai-fixes' )->get_data()['code'] );
 		$this->enable_fake_meta();
 		$claude            = new AuditFakeClaude();
