@@ -42,6 +42,7 @@ export {
 	changeStatusOptions,
 } from './components/ChangeLogTable';
 export { default as SerpPreview } from './components/SerpPreview';
+export { default as AskAiButton, askAiUrl } from './components/AskAiButton';
 export {
 	default as CharCounter,
 	lengthMessage,
