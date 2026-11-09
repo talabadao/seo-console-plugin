@@ -246,6 +246,8 @@ Long-running state lives in the module's tables, never in transients.
 | `seoc_speed_run_completed` | action | `int $run_id`, `array $summary` | speed → others |
 | `seoc_change_applied` / `seoc_change_reverted` | action | `Change $change` | core → modules (e.g. speed re-test) |
 | `seoc_dashboard_cards` | filter | `array $cards` | modules → Dashboard page |
+| `seoc_ai_tools` | filter | `AI\Tools\Tool[]` | modules → Chat, Abilities/MCP (§17.1) |
+| `seoc_digest_sections` | filter | `array $sections` | modules → weekly email digest (§17.3) |
 
 ## 12. REST API (core)
 
@@ -354,3 +356,78 @@ default false), `googleConfigured`, `pages: [ { slug, title, entry, url } ]`, `c
 `seoc_suggestion_created( $id, $updated )`, `seoc_suggestion_applied( $id, $change )`, `seoc_suggestion_rejected( $id )`,
 `seoc_cache_purged( $ids, $url|null )`, `seoc_health_check_pre` (filter, short-circuit; useful in tests),
 `seoc_safe_mode` (filter), `seoc_is_frontend_request` (filter), `seoc_cache_plugins` (filter), `seoc_time_budget` (filter).
+
+## 17. Version 0.2: automation, AI tools, phase-2 modules
+
+### 17.1 AI tools registry (core, `AI\Tools\Registry`, `Plugin::ai_tools()`)
+
+Modules contribute `AI\Tools\Tool` objects through the filter `seoc_ai_tools` (from a file `includes/Modules/<Name>/AiTools.php`
+hooked in the module's `register()`). Two consumers use the same list: the Chat module (Claude tool use) and the
+Abilities/MCP bridge (Claude Code and other MCP clients).
+
+- `kind = 'read'`: returns data (paged, small). `kind = 'propose'`: may create Suggestions through `SuggestionService`
+  for a person to approve. **There is no "write" kind**: a tool never changes the site directly.
+- Names: `<module>_<verb>_<noun>`, e.g. `audit_get_summary`, `audit_list_issues`, `audit_get_page`, `speed_get_overview`,
+  `speed_list_recommendations`, `meta_get_post`, `meta_propose_post_meta`, `schema_get_post`, `schema_propose_for_post`,
+  `core_list_suggestions`, `core_list_changes`, `core_get_environment`.
+- `Registry::run( $name, $input )` checks `manage_options`, required/unknown input keys, and refuses results over
+  24 KB of JSON (`seoc_ai_tool_too_large`): tools must page (`per_page` ≤ 50) and return compact rows.
+- Tool results are data. Text that came from the site (titles, page text) stays inside JSON string values; the chat system
+  prompt states that tool results are untrusted data, not instructions (§10 prompt-injection rule).
+
+### 17.2 Chat with tools and "Ask AI" deep links (Chat module)
+
+- One Claude request per HTTP request (shared hosting ~30 s): `POST chat/messages` runs one model call; when the model
+  stops with `tool_use`, the server runs the tools, stores everything, and answers `{ status: 'continue' }`; the browser
+  then calls `POST chat/continue { conversation_id }` until `{ status: 'done' }`. At most 8 rounds per user message.
+- Assistant turns are stored as the **full content block list** (thinking, text, tool_use…) and replayed unchanged;
+  history is append-only (no trimming inside a conversation: a conversation that grows past the limit asks the user to
+  start a new one, with a summary carried over as the first user message).
+- Suggestions created by `propose` tools during a turn are returned with the turn (`suggestion_ids`) and rendered in the
+  thread with the shared `SuggestionList` (Approve / edit / Reject right in the chat).
+- Deep link from any module page: `admin.php?page=seo-console-chat&ask=<urlencoded question>&ref=<module>:<type>:<id>`
+  (e.g. `ref=audit:rule:title_missing`, `ref=audit:page:123`, `ref=speed:recommendation:render-blocking-resources`).
+  The chat page starts a new conversation with that question; `ref` is passed to the server, which adds a short data
+  block naming the object so the model fetches details with tools. Shared JS helper `askAiUrl( question, ref )` and
+  component `AskAiButton` live in `src/admin/shared/`.
+
+### 17.3 Automation (core)
+
+Principle (§1) stays: a person approves changes. Automation = doing the preparation without being asked, plus an
+explicit, opt-in **Autopilot** policy where the admin approves a narrow class of changes in advance:
+
+- `general.autopilot` (`off` default | `fill_empty`): with `fill_empty`, a new suggestion is applied automatically only
+  when its type is in `general.autopilot_types` (default `image_alt`, `post_image_alt`, `seo_meta:description`),
+  its `current_value` is empty, its source is `ai` or `rule`, it has no validator warnings, and the daily cap
+  (`general.autopilot_daily_cap`, default 25) is not reached. Applied through `SuggestionService::approve()` with change
+  `source = 'autopilot'`, so it is logged, health-checked and undoable like any other change. Never overwrites an
+  existing value, never applies schema or tweaks.
+- Pipeline settings (one "Automation" admin page, core): scheduled audit, scheduled speed tests, AI suggestions after
+  each audit, AI suggestions on publish, Autopilot, and a weekly **email digest** (`general.digest` off|weekly,
+  `general.digest_email`): what was found, what is waiting for review, what Autopilot applied (with undo link).
+  Modules contribute digest sections through the filter `seoc_digest_sections` (`key => [ title, lines[], link ]`).
+
+### 17.4 Speed tests that do not depend on WP-Cron
+
+A speed run can be advanced three ways; all write the same result rows:
+1. **Browser runner (default while the Speed page is open):** the page asks `GET speed/runs/{id}/next` for pending
+   tests, calls the PageSpeed Insights API directly from the browser (no API key is ever sent to the browser: these
+   calls are keyless and use the visitor's own quota), strips screenshots/large blobs, and uploads the JSON to
+   `POST speed/results/{id}/ingest`. The server validates that the result is for the requested URL of this site and
+   parses it with the same `PsiParser`. 2 tests in parallel.
+2. **Server pull (`POST speed/runs/{id}/advance`)**: one keyed PSI request inline when the browser call fails
+   (quota, blocked network), guarded by a lock.
+3. **Background (scheduled runs):** Action Scheduler as before, hardened: stale tests are re-queued once, then fail with
+   a specific reason; `seoc_speed_test_url` is also kicked right after a run is created.
+Every failed test stores a machine code and a plain-English reason + advice; the UI offers "Retry failed tests".
+
+### 17.5 Phase-2 modules
+
+- `botlog` (`Modules\BotLog\BotLogModule`): logs search/AI/SEO-tool bot hits that reach PHP (one cheap insert at
+  `shutdown`), verifies Googlebot/Bingbot by reverse DNS in a background job, aggregates daily, dashboard page.
+  Honest label: requests served from a full-page cache never reach PHP, so numbers are a sample.
+- `gtm` (`Modules\Gtm\GtmModule`): pushes page context to `window.dataLayer` before GTM loads; never injects the GTM
+  container when one is already present.
+- `abilities` (`Modules\Abilities\AbilitiesModule`): on WordPress 6.9+ registers every AI tool (§17.1) as an Ability
+  (`seo-console/<tool-name>`) so the MCP Adapter exposes them to Claude Code. `propose` tools still only create
+  suggestions. Off by default.

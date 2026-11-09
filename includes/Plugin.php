@@ -58,6 +58,9 @@ final class Plugin {
 		'SEOConsole\\Modules\\Meta\\MetaModule',
 		'SEOConsole\\Modules\\Chat\\ChatModule',
 		'SEOConsole\\Modules\\Schema\\SchemaModule',
+		'SEOConsole\\Modules\\BotLog\\BotLogModule',
+		'SEOConsole\\Modules\\Gtm\\GtmModule',
+		'SEOConsole\\Modules\\Abilities\\AbilitiesModule',
 	);
 
 	/**
@@ -372,6 +375,18 @@ final class Plugin {
 			'usage',
 			function () {
 				return new Usage( $this->settings() );
+			}
+		);
+	}
+
+	/**
+	 * AI tools contributed by modules (Chat and the Abilities/MCP bridge use them).
+	 */
+	public function ai_tools(): \SEOConsole\AI\Tools\Registry {
+		return $this->service(
+			'ai_tools',
+			function () {
+				return new \SEOConsole\AI\Tools\Registry( $this );
 			}
 		);
 	}
