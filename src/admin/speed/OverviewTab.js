@@ -1,7 +1,7 @@
 /**
  * Overview: Core Web Vitals from real users, lab scores per page, trends and run progress.
  */
-import { Button, Notice, Spinner } from '@wordpress/components';
+import { Button, Notice } from '@wordpress/components';
 import { useEffect, useRef, useState } from '@wordpress/element';
 import { __, _n, sprintf } from '@wordpress/i18n';
 
@@ -70,7 +70,14 @@ function RunRows( { results, testing } ) {
 					: ( TEST_STATUS[ r.status ] || TEST_STATUS.pending )();
 				return (
 					<li key={ r.id }>
-						{ busy && <Spinner /> }{ ' ' }
+						{ /* A plain CSS dot, not <Spinner>: an emotion component mounted/unmounted on every
+						     poll tick trips React error #310 in the production build. */ }
+						{ busy && (
+							<span
+								className="seoc-run-spin"
+								aria-hidden="true"
+							/>
+						) }{ ' ' }
 						<strong>{ r.label || r.url }</strong> ·{ ' ' }
 						{ strategyLabel( r.strategy ) } — { label }
 						{ r.status === 'done' &&
@@ -91,12 +98,11 @@ function RunRows( { results, testing } ) {
  * result, and fall back to the server when the browser can't reach Google. Also polls so a run finished
  * by the background job (page left open earlier) still updates.
  *
- * @param {Object}   props           Props.
- * @param {Object}   props.run       The active run.
- * @param {Function} props.onDone    Called with the run when it reaches a terminal status.
- * @param {Function} [props.onRetry] Called when the user cancels (optional).
+ * @param {Object}   props        Props.
+ * @param {Object}   props.run    The active run.
+ * @param {Function} props.onDone Called with the run when it reaches a terminal status.
  */
-function RunProgress( { run, onDone, onRetry } ) {
+function RunProgress( { run, onDone } ) {
 	const [ current, setCurrent ] = useState( run );
 	const [ results, setResults ] = useState( [] );
 	const [ testing, setTesting ] = useState( {} );
@@ -229,11 +235,6 @@ function RunProgress( { run, onDone, onRetry } ) {
 				) }
 			</p>
 			<RunRows results={ results } testing={ testing } />
-			{ onRetry && (
-				<Button variant="link" onClick={ onRetry }>
-					{ __( 'Cancel', 'seo-console' ) }
-				</Button>
-			) }
 		</Notice>
 	);
 }

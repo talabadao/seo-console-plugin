@@ -1053,3 +1053,35 @@
 		}
 	}
 }
+
+/* Speed run progress rows (no emotion components here — see OverviewTab RunRows). */
+.seoc-app .seoc-run-rows {
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.seoc-app .seoc-run-rows li {
+	padding: 2px 0;
+}
+
+.seoc-app .seoc-run-error {
+	color: #b32d2e;
+}
+
+.seoc-app .seoc-run-spin {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	vertical-align: -1px;
+	border: 2px solid #c3c4c7;
+	border-top-color: #2271b1;
+	border-radius: 50%;
+	animation: seoc-run-spin 0.8s linear infinite;
+}
+
+@keyframes seoc-run-spin {
+	to {
+		transform: rotate( 360deg );
+	}
+}
