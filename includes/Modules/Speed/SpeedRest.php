@@ -81,6 +81,75 @@ class SpeedRest extends Controller {
 				),
 			)
 		);
+		$id_arg = array(
+			'id' => array(
+				'type'    => 'integer',
+				'minimum' => 1,
+			),
+		);
+		register_rest_route(
+			$ns,
+			'/speed/runs/(?P<id>\d+)/next',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'get_next_tests' ),
+				'permission_callback' => $perm,
+				'args'                => $id_arg,
+			)
+		);
+		foreach ( array(
+			'advance'      => 'advance_run',
+			'retry-failed' => 'retry_failed',
+		) as $route => $callback ) {
+			register_rest_route(
+				$ns,
+				'/speed/runs/(?P<id>\d+)/' . $route,
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, $callback ),
+					'permission_callback' => $perm,
+					'args'                => $id_arg,
+				)
+			);
+		}
+		$rid_arg = array(
+			'rid' => array(
+				'type'    => 'integer',
+				'minimum' => 1,
+			),
+		);
+		register_rest_route(
+			$ns,
+			// The PSI result JSON body has a top-level "id" key, so the path param is "rid" to avoid a clash.
+			'/speed/results/(?P<rid>\d+)/ingest',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'ingest_result' ),
+				'permission_callback' => $perm,
+				'args'                => $rid_arg,
+			)
+		);
+		register_rest_route(
+			$ns,
+			'/speed/results/(?P<rid>\d+)/report-failure',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'report_failure' ),
+				'permission_callback' => $perm,
+				'args'                => array(
+					'rid'         => $rid_arg['rid'],
+					'code'        => array(
+						'type'    => 'string',
+						'enum'    => array( 'quota', 'forbidden', 'network', 'timeout', 'server', 'unknown' ),
+						'default' => 'unknown',
+					),
+					'http_status' => array(
+						'type'    => 'integer',
+						'default' => 0,
+					),
+				),
+			)
+		);
 		foreach ( array(
 			'overview'        => 'get_overview',
 			'recommendations' => 'get_recommendations',
@@ -293,6 +362,115 @@ class SpeedRest extends Controller {
 		$card['field_origin'] = isset( $result['field']['origin'] ) ? $result['field']['origin'] : null;
 		$card['warnings']     = isset( $result['warnings'] ) ? $result['warnings'] : array();
 		return $card;
+	}
+
+	/**
+	 * The standard { run, results } payload for a run id.
+	 *
+	 * @param int $run_id Run id.
+	 * @return array|WP_Error
+	 */
+	private function run_with_results( int $run_id ) {
+		$store = $this->runner()->store();
+		$run   = $store->get_run( $run_id );
+		if ( null === $run ) {
+			return new WP_Error( 'seoc_not_found', __( 'Speed test not found.', 'seo-console' ), array( 'status' => 404 ) );
+		}
+		$results = array();
+		foreach ( $store->results_for_run( $run_id, true ) as $row ) {
+			$results[] = self::result_card( $row );
+		}
+		return array(
+			'run'     => $run,
+			'results' => $results,
+		);
+	}
+
+	/**
+	 * GET speed/runs/{id}/next — open tests for the browser runner, each with the keyless PSI URL.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 */
+	public function get_next_tests( WP_REST_Request $request ) {
+		$next = $this->runner()->next_tests( (int) $request['id'] );
+		if ( null === $next['run'] ) {
+			return $this->respond( new WP_Error( 'seoc_not_found', __( 'Speed test not found.', 'seo-console' ), array( 'status' => 404 ) ) );
+		}
+		return $this->respond(
+			array(
+				'run'    => $next['run'],
+				'tests'  => $next['tests'],
+				'status' => $next['run']['status'],
+			)
+		);
+	}
+
+	/**
+	 * POST speed/results/{id}/ingest — store a PSI result the browser fetched.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 */
+	public function ingest_result( WP_REST_Request $request ) {
+		$raw = $request->get_json_params();
+		if ( ! is_array( $raw ) || empty( $raw ) ) {
+			return $this->respond( new WP_Error( 'seoc_speed_bad_result', __( 'No result was sent.', 'seo-console' ), array( 'status' => 400 ) ) );
+		}
+		$result = $this->runner()->ingest_result( (int) $request['rid'], $raw );
+		if ( is_wp_error( $result ) ) {
+			return $this->respond( $result );
+		}
+		return $this->respond( $this->run_with_results( (int) $result['run_id'] ) );
+	}
+
+	/**
+	 * POST speed/results/{id}/report-failure — the browser could not run a test.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 */
+	public function report_failure( WP_REST_Request $request ) {
+		$result = $this->runner()->report_browser_failure( (int) $request['rid'], (string) $request['code'], (int) $request['http_status'] );
+		if ( is_wp_error( $result ) ) {
+			return $this->respond( $result );
+		}
+		return $this->respond(
+			array(
+				'result'    => self::result_card( $result ),
+				'fall_back' => 'pending' === $result['status'],
+				'run'       => $this->runner()->store()->get_run( (int) $result['run_id'] ),
+			)
+		);
+	}
+
+	/**
+	 * POST speed/runs/{id}/advance — run one open test on the server (keyed fallback).
+	 *
+	 * @param WP_REST_Request $request Request.
+	 */
+	public function advance_run( WP_REST_Request $request ) {
+		$run_id  = (int) $request['id'];
+		$result  = $this->runner()->advance_run( $run_id );
+		$payload = $this->run_with_results( $run_id );
+		if ( is_wp_error( $payload ) ) {
+			return $this->respond( $payload );
+		}
+		$payload['advanced'] = $result['advanced'];
+		return $this->respond( $payload );
+	}
+
+	/**
+	 * POST speed/runs/{id}/retry-failed — re-queue failed tests of a run.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 */
+	public function retry_failed( WP_REST_Request $request ) {
+		$run_id  = (int) $request['id'];
+		$count   = $this->runner()->retry_failed( $run_id );
+		$payload = $this->run_with_results( $run_id );
+		if ( is_wp_error( $payload ) ) {
+			return $this->respond( $payload );
+		}
+		$payload['retried'] = $count;
+		return $this->respond( $payload );
 	}
 
 	/* -------------------------------------------------------------- overview */

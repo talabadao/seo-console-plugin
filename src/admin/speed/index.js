@@ -129,7 +129,7 @@ function App() {
 				addNotice(
 					'info',
 					__(
-						'Speed test started. Results appear here in a few minutes.',
+						'Speed test started. Keep this page open and results appear below as each page finishes.',
 						'seo-console'
 					)
 				);
@@ -203,6 +203,7 @@ function App() {
 									reload={ overview.reload }
 									activeRun={ activeRun }
 									onRunDone={ onRunDone }
+									onRunStarted={ setActiveRun }
 									addNotice={ addNotice }
 								/>
 							);

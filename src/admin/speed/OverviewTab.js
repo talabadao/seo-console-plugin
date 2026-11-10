@@ -1,11 +1,12 @@
 /**
  * Overview: Core Web Vitals from real users, lab scores per page, trends and run progress.
  */
-import { Button, Notice } from '@wordpress/components';
-import { useEffect, useState } from '@wordpress/element';
+import { Button, Notice, Spinner } from '@wordpress/components';
+import { useEffect, useRef, useState } from '@wordpress/element';
 import { __, _n, sprintf } from '@wordpress/i18n';
 
 import {
+	AskAiButton,
 	Card,
 	DataHonesty,
 	EmptyState,
@@ -17,7 +18,16 @@ import {
 	formatDate,
 	formatRelative,
 } from '../shared';
-import { getRun, refreshCrux } from './api';
+import {
+	advanceRun,
+	getNextTests,
+	getRun,
+	ingestResult,
+	refreshCrux,
+	reportFailure,
+	retryFailed,
+} from './api';
+import { codeForError, codeForStatus, fetchPsi, stripResult } from './runner';
 import {
 	LIMITS,
 	METRICS,
@@ -32,27 +42,173 @@ import {
 
 const ACTIVE = [ 'queued', 'running' ];
 
-function RunProgress( { run, onDone } ) {
+const TEST_STATUS = {
+	pending: () => __( 'Waiting…', 'seo-console' ),
+	retry: () => __( 'Waiting…', 'seo-console' ),
+	running: () => __( 'Testing…', 'seo-console' ),
+	done: () => __( 'Done', 'seo-console' ),
+	failed: () => __( 'Failed', 'seo-console' ),
+};
+
+/**
+ * One row per page/device test, with its live status.
+ *
+ * @param {Object} props         Props.
+ * @param {Array}  props.results Result cards from the server.
+ * @param {Object} props.testing Map of result id → true while the browser is fetching it.
+ */
+function RunRows( { results, testing } ) {
+	if ( ! results || ! results.length ) {
+		return null;
+	}
+	return (
+		<ul className="seoc-run-rows">
+			{ results.map( ( r ) => {
+				const busy = testing[ r.id ];
+				const label = busy
+					? __( 'Testing…', 'seo-console' )
+					: ( TEST_STATUS[ r.status ] || TEST_STATUS.pending )();
+				return (
+					<li key={ r.id }>
+						{ busy && <Spinner /> }{ ' ' }
+						<strong>{ r.label || r.url }</strong> ·{ ' ' }
+						{ strategyLabel( r.strategy ) } — { label }
+						{ r.status === 'done' &&
+							r.score !== null &&
+							` (${ r.score }/100)` }
+						{ r.status === 'failed' && r.error && (
+							<span className="seoc-run-error"> { r.error }</span>
+						) }
+					</li>
+				);
+			} ) }
+		</ul>
+	);
+}
+
+/**
+ * Drives a run from the browser: fetch PSI directly for each pending test (two at a time), upload the
+ * result, and fall back to the server when the browser can't reach Google. Also polls so a run finished
+ * by the background job (page left open earlier) still updates.
+ *
+ * @param {Object}   props           Props.
+ * @param {Object}   props.run       The active run.
+ * @param {Function} props.onDone    Called with the run when it reaches a terminal status.
+ * @param {Function} [props.onRetry] Called when the user cancels (optional).
+ */
+function RunProgress( { run, onDone, onRetry } ) {
 	const [ current, setCurrent ] = useState( run );
+	const [ results, setResults ] = useState( [] );
+	const [ testing, setTesting ] = useState( {} );
+	const cancelled = useRef( false );
+	const inFlight = useRef( {} );
+
 	useEffect( () => {
 		setCurrent( run );
+		cancelled.current = false;
 		if ( ! run || ! ACTIVE.includes( run.status ) ) {
 			return undefined;
 		}
-		const timer = window.setInterval( () => {
-			getRun( run.id ).then(
-				( data ) => {
-					setCurrent( data.run );
-					if ( ! ACTIVE.includes( data.run.status ) ) {
-						window.clearInterval( timer );
-						onDone( data.run );
+
+		const mark = ( id, on ) =>
+			setTesting( ( prev ) => {
+				const next = { ...prev };
+				if ( on ) {
+					next[ id ] = true;
+				} else {
+					delete next[ id ];
+				}
+				return next;
+			} );
+
+		const applyRun = ( data ) => {
+			if ( cancelled.current || ! data || ! data.run ) {
+				return;
+			}
+			setCurrent( data.run );
+			if ( data.results ) {
+				setResults( data.results );
+			}
+			if ( ! ACTIVE.includes( data.run.status ) ) {
+				cancelled.current = true;
+				onDone( data.run );
+			}
+		};
+
+		// Runs one test in the browser, then ingests or reports the failure (falling back to the server).
+		const runOne = async ( test ) => {
+			if ( inFlight.current[ test.result_id ] ) {
+				return;
+			}
+			inFlight.current[ test.result_id ] = true;
+			mark( test.result_id, true );
+			try {
+				const raw = await fetchPsi( test.psi_url );
+				const data = await ingestResult(
+					test.result_id,
+					stripResult( raw )
+				);
+				applyRun( data );
+			} catch ( error ) {
+				const code = error.psi
+					? codeForStatus( error.status )
+					: codeForError( error );
+				try {
+					const res = await reportFailure(
+						test.result_id,
+						code,
+						error.status || 0
+					);
+					if ( res && res.fall_back && current ) {
+						// The keyless browser call hit quota/forbidden; let the server's keyed call do it.
+						await advanceRun( run.id );
 					}
-				},
-				() => {}
-			);
-		}, 5000 );
-		return () => window.clearInterval( timer );
-	}, [ run, onDone ] );
+				} catch ( e ) {
+					// Ignore; the next poll re-reads state.
+				}
+			} finally {
+				delete inFlight.current[ test.result_id ];
+				mark( test.result_id, false );
+			}
+		};
+
+		// Main loop: ask the server which tests are open, run up to 2 at once, then poll.
+		const tick = async () => {
+			if ( cancelled.current ) {
+				return;
+			}
+			try {
+				const next = await getNextTests( run.id );
+				applyRun( { run: next.run, results: undefined } );
+				if ( cancelled.current ) {
+					return;
+				}
+				if ( ! ACTIVE.includes( next.run.status ) ) {
+					const full = await getRun( run.id );
+					applyRun( full );
+					return;
+				}
+				const open = ( next.tests || [] ).filter(
+					( t ) => ! inFlight.current[ t.result_id ]
+				);
+				const slots = 2 - Object.keys( inFlight.current ).length;
+				open.slice( 0, Math.max( 0, slots ) ).forEach( runOne );
+				// Keep the card's rows fresh even between ingests.
+				const full = await getRun( run.id );
+				applyRun( full );
+			} catch ( e ) {
+				// Network hiccup; try again on the next tick.
+			}
+		};
+
+		tick();
+		const timer = window.setInterval( tick, 4000 );
+		return () => {
+			cancelled.current = true;
+			window.clearInterval( timer );
+		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ run ] );
 
 	if ( ! current || ! ACTIVE.includes( current.status ) ) {
 		return null;
@@ -68,10 +224,16 @@ function RunProgress( { run, onDone } ) {
 					current.urls_total
 				) }{ ' ' }
 				{ __(
-					'Each page takes up to a minute at Google and runs in the background: you can leave this page.',
+					'Tests run from your browser while this page is open — about 1–2 minutes. If you close the page, the rest finish in the background.',
 					'seo-console'
 				) }
 			</p>
+			<RunRows results={ results } testing={ testing } />
+			{ onRetry && (
+				<Button variant="link" onClick={ onRetry }>
+					{ __( 'Cancel', 'seo-console' ) }
+				</Button>
+			) }
 		</Notice>
 	);
 }
@@ -623,6 +785,7 @@ export default function OverviewTab( {
 	reload,
 	activeRun,
 	onRunDone,
+	onRunStarted,
 	addNotice,
 } ) {
 	const scheduleText = {
@@ -631,8 +794,45 @@ export default function OverviewTab( {
 		off: __( 'Automatic tests are off.', 'seo-console' ),
 	};
 	const pagesCount = ( overview.pages || [] ).length;
+	const lastRun = overview.last_run;
+	const hadFailures =
+		lastRun &&
+		! activeRun &&
+		[ 'partial', 'failed' ].includes( lastRun.status );
+	const onRetryFailed = () => {
+		retryFailed( lastRun.id ).then(
+			( data ) => {
+				if ( data && data.run && onRunStarted ) {
+					onRunStarted( data.run );
+				}
+			},
+			( error ) => addNotice( 'error', error.message )
+		);
+	};
 	return (
 		<>
+			{ hadFailures && (
+				<Notice status="warning" isDismissible={ false }>
+					<p>
+						{ __(
+							'The last test could not finish some pages.',
+							'seo-console'
+						) }{ ' ' }
+						<Button variant="link" onClick={ onRetryFailed }>
+							{ __( 'Retry failed tests', 'seo-console' ) }
+						</Button>
+						{ ' · ' }
+						<AskAiButton
+							question={ __(
+								'What should I fix first to pass Core Web Vitals on my site?',
+								'seo-console'
+							) }
+							reference="speed:overview"
+							variant="link"
+						/>
+					</p>
+				</Notice>
+			) }
 			{ ! overview.has_key && (
 				<Notice status="info" isDismissible={ false }>
 					<p>

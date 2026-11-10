@@ -115,6 +115,47 @@ class PsiClient {
 	}
 
 	/**
+	 * Keyless PageSpeed Insights URL for the browser runner (the API key is never sent to the browser).
+	 * The browser calls this with the visitor's own quota; the server keeps the keyed path as a fallback.
+	 *
+	 * @param string $url      Page URL.
+	 * @param string $strategy 'mobile' or 'desktop'.
+	 * @return string
+	 */
+	public static function browser_url( string $url, string $strategy ): string {
+		return add_query_arg(
+			array(
+				'url'      => rawurlencode( $url ),
+				'strategy' => in_array( $strategy, self::STRATEGIES, true ) ? $strategy : 'mobile',
+				'category' => 'performance',
+				'locale'   => 'en',
+			),
+			self::ENDPOINT
+		);
+	}
+
+	/**
+	 * Whether a URL is public enough for Google to fetch: http/https, a host with a dot, not localhost or a
+	 * private/reserved IP. Used to refuse doomed tests up-front with a clear message.
+	 *
+	 * @param string $url URL.
+	 * @return bool
+	 */
+	public static function is_public_url( string $url ): bool {
+		if ( ! self::is_testable_url( $url ) ) {
+			return false;
+		}
+		$host = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
+		if ( '' === $host || 'localhost' === $host || false === strpos( $host, '.' ) || '.test' === substr( $host, -5 ) || '.local' === substr( $host, -6 ) || '.localhost' === substr( $host, -10 ) ) {
+			return false;
+		}
+		if ( filter_var( $host, FILTER_VALIDATE_IP ) && ! filter_var( $host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
 	 * Whether a URL is something PSI can fetch (absolute http/https with a host).
 	 *
 	 * @param string $url URL.
