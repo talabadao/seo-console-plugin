@@ -193,8 +193,14 @@ final class Menu {
 			);
 			echo '</p></div>';
 		}
-		// The React Page component adds the .seoc-app wrapper and the wp-header-end marker.
-		echo '<div id="seoc-root" data-page="' . esc_attr( $entry ) . '"></div>';
+		// The React Page component adds the .seoc-app wrapper and the wp-header-end marker. The fallback
+		// text shows if the script never runs (not enqueued, blocked, or a conflict stopped admin JS), so
+		// the screen is never silently blank.
+		echo '<div id="seoc-root" data-page="' . esc_attr( $entry ) . '">';
+		echo '<p class="seoc-booting" style="padding:12px;color:#646970;">';
+		echo esc_html__( 'Loading SEO Console…', 'seo-console' );
+		echo '<noscript>' . esc_html__( ' This page needs JavaScript.', 'seo-console' ) . '</noscript>';
+		echo '</p></div>';
 		echo '</div>';
 	}
 
