@@ -125,6 +125,16 @@ function App() {
 		startRun().then(
 			( res ) => {
 				setStarting( false );
+				// A run can finish instantly — e.g. every URL is non-public (a local site Google can't
+				// reach). Surface that straight away instead of waiting for progress that never comes.
+				if (
+					res.run &&
+					! [ 'queued', 'running' ].includes( res.run.status )
+				) {
+					setActiveRun( null );
+					onRunDone( res.run );
+					return;
+				}
 				setActiveRun( res.run );
 				addNotice(
 					'info',
