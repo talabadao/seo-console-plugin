@@ -151,14 +151,6 @@ class SpeedRunner {
 				)
 			);
 		}
-		if ( ! $this->plugin->queue()->available() ) {
-			return new WP_Error(
-				'seoc_speed_queue_unavailable',
-				__( 'Background jobs are not available right now, so the test cannot start. Try again in a minute.', 'seo-console' ),
-				array( 'status' => 503 )
-			);
-		}
-
 		$urls       = $this->target_urls();
 		$strategies = $this->strategies();
 		$run_id     = $this->store->create_run(
@@ -171,6 +163,7 @@ class SpeedRunner {
 		if ( ! $run_id ) {
 			return new WP_Error( 'seoc_speed_db', __( 'The test could not be saved in the database.', 'seo-console' ), array( 'status' => 500 ) );
 		}
+		$has_queue = $this->plugin->queue()->available();
 		foreach ( $urls as $entry ) {
 			foreach ( $strategies as $strategy ) {
 				$result_id = $this->store->create_result(
@@ -183,9 +176,24 @@ class SpeedRunner {
 						'strategy'  => $strategy,
 					)
 				);
-				$this->plugin->queue()->enqueue( self::HOOK_TEST, array( $result_id ) );
+				if ( ! PsiClient::is_public_url( $entry['url'] ) ) {
+					// Google can only test a public address; fail these up-front instead of queuing doomed work.
+					$this->store->update_result(
+						$result_id,
+						array(
+							'status'     => 'failed',
+							'error_code' => 'seoc_psi_not_public',
+							'error'      => __( 'PageSpeed Insights can only test a public address. This looks like a local or private site, so Google cannot reach it.', 'seo-console' ),
+						)
+					);
+					continue;
+				}
+				if ( $has_queue ) {
+					$this->plugin->queue()->enqueue( self::HOOK_TEST, array( $result_id ) );
+				}
 			}
 		}
+		$this->finish_run_if_complete( $run_id );
 		return $this->store->get_run( $run_id );
 	}
 
@@ -278,17 +286,29 @@ class SpeedRunner {
 		}
 
 		$parsed = ( new PsiParser() )->parse( $raw, $result['strategy'] );
+		$this->store_parsed_result( $result, $parsed, $attempts );
+		$this->finish_run_if_complete( $result['run_id'] );
+	}
+
+	/**
+	 * Stores a parsed PSI result on a row (shared by the background job and the browser-runner ingest path).
+	 * Adds the LCP-image follow-up for the `lcp_boost` tweak.
+	 *
+	 * @param array $result   Result row.
+	 * @param array $parsed   Compact PSI result from PsiParser.
+	 * @param int   $attempts Attempt number to record.
+	 */
+	private function store_parsed_result( array $result, array $parsed, int $attempts ): void {
 		if ( isset( $parsed['lcp_element']['type'] ) && 'image' === $parsed['lcp_element']['type'] && '' !== $parsed['lcp_element']['image_url'] ) {
 			$attrs = $this->page_image_attributes( $result['url'], $parsed['lcp_element']['image_url'] );
 			if ( null !== $attrs ) {
 				$parsed['lcp_element']['page_attrs'] = $attrs;
 			}
 		}
-
 		$lab   = $parsed['lab'];
 		$field = null !== $parsed['field']['url'] ? $parsed['field']['url'] : null;
 		$this->store->update_result(
-			$result['id'],
+			(int) $result['id'],
 			array(
 				'status'         => 'done',
 				'attempts'       => $attempts,
@@ -309,7 +329,257 @@ class SpeedRunner {
 				'error'          => null,
 			)
 		);
+	}
+
+	/**
+	 * Open (not-yet-tested) results of a run, for the browser runner. Each carries the keyless PSI URL the
+	 * browser fetches itself.
+	 *
+	 * @param int $run_id Run id.
+	 * @param int $limit  Most rows to hand out.
+	 * @return array{ run: array|null, tests: array<int, array<string, mixed>> }
+	 */
+	public function next_tests( int $run_id, int $limit = 6 ): array {
+		$run = $this->store->get_run( $run_id );
+		if ( null === $run || ! in_array( $run['status'], SpeedStore::ACTIVE, true ) ) {
+			return array(
+				'run'   => $run,
+				'tests' => array(),
+			);
+		}
+		$tests = array();
+		foreach ( $this->store->results_for_run( $run_id ) as $row ) {
+			if ( ! in_array( $row['status'], SpeedStore::OPEN, true ) ) {
+				continue;
+			}
+			$tests[] = array(
+				'result_id' => (int) $row['id'],
+				'url'       => $row['url'],
+				'label'     => $row['label'],
+				'strategy'  => $row['strategy'],
+				'psi_url'   => PsiClient::browser_url( $row['url'], $row['strategy'] ),
+			);
+			if ( count( $tests ) >= $limit ) {
+				break;
+			}
+		}
+		return array(
+			'run'   => $run,
+			'tests' => $tests,
+		);
+	}
+
+	/**
+	 * Ingests a PSI result the browser fetched for one row. Validates that the result is for this site's own
+	 * URL and the right strategy, then stores it like the background job would.
+	 *
+	 * @param int   $result_id Result row id.
+	 * @param array $raw       Raw PSI JSON (already JSON-decoded by the REST layer).
+	 * @return array|WP_Error Updated result row, or an error.
+	 */
+	public function ingest_result( int $result_id, array $raw ) {
+		$result = $this->store->get_result( $result_id );
+		if ( null === $result ) {
+			return new WP_Error( 'seoc_speed_result_unknown', __( 'Unknown test.', 'seo-console' ), array( 'status' => 404 ) );
+		}
+		if ( ! in_array( $result['status'], SpeedStore::OPEN, true ) ) {
+			return $result; // Already stored by another path; accept idempotently.
+		}
+		$run = $this->store->get_run( $result['run_id'] );
+		if ( null === $run || ! in_array( $run['status'], SpeedStore::ACTIVE, true ) ) {
+			return new WP_Error( 'seoc_speed_run_closed', __( 'This speed test has already finished.', 'seo-console' ), array( 'status' => 409 ) );
+		}
+		$lh = isset( $raw['lighthouseResult'] ) && is_array( $raw['lighthouseResult'] ) ? $raw['lighthouseResult'] : array();
+		if ( empty( $lh ) ) {
+			return new WP_Error( 'seoc_speed_bad_result', __( 'That is not a PageSpeed Insights result.', 'seo-console' ), array( 'status' => 400 ) );
+		}
+		// The result must be for the URL we asked about (same host + path), so a page can't post a result for
+		// another site or another of this site's URLs.
+		$tested = (string) ( isset( $lh['finalUrl'] ) ? $lh['finalUrl'] : ( isset( $lh['requestedUrl'] ) ? $lh['requestedUrl'] : '' ) );
+		if ( ! self::same_page( $result['url'], $tested ) && ! self::same_page( $result['url'], (string) ( isset( $lh['requestedUrl'] ) ? $lh['requestedUrl'] : '' ) ) ) {
+			return new WP_Error( 'seoc_speed_url_mismatch', __( 'This result is for a different address than the one requested.', 'seo-console' ), array( 'status' => 422 ) );
+		}
+		$form_factor = isset( $lh['configSettings']['formFactor'] ) ? (string) $lh['configSettings']['formFactor'] : '';
+		if ( '' !== $form_factor && $form_factor !== $result['strategy'] ) {
+			return new WP_Error( 'seoc_speed_strategy_mismatch', __( 'This result is for a different device than requested.', 'seo-console' ), array( 'status' => 422 ) );
+		}
+		$parsed = ( new PsiParser() )->parse( $raw, $result['strategy'] );
+		$this->store_parsed_result( $result, $parsed, $result['attempts'] + 1 );
 		$this->finish_run_if_complete( $result['run_id'] );
+		return $this->store->get_result( $result_id );
+	}
+
+	/**
+	 * Records that the browser could not run a test and decides what happens next: retry in the browser,
+	 * fall back to the keyed server path, or fail with a clear reason.
+	 *
+	 * @param int    $result_id Result id.
+	 * @param string $code      Machine code from the browser (quota|forbidden|network|timeout|server|unknown).
+	 * @param int    $status    HTTP status Google returned, if any.
+	 * @return array|WP_Error Updated row.
+	 */
+	public function report_browser_failure( int $result_id, string $code, int $status = 0 ) {
+		$result = $this->store->get_result( $result_id );
+		if ( null === $result ) {
+			return new WP_Error( 'seoc_speed_result_unknown', __( 'Unknown test.', 'seo-console' ), array( 'status' => 404 ) );
+		}
+		if ( ! in_array( $result['status'], SpeedStore::OPEN, true ) ) {
+			return $result;
+		}
+		// Quota/forbidden from the keyless browser call: the server's keyed request often still works, so hand
+		// it back as pending for the server-pull path (`advance`). Other errors get one browser retry, then fail.
+		if ( in_array( $code, array( 'quota', 'forbidden' ), true ) && $this->api_key() ) {
+			$this->store->update_result( $result_id, array( 'status' => 'pending' ) );
+			return $this->store->get_result( $result_id );
+		}
+		$attempts                     = $result['attempts'] + 1;
+		$retry                        = $attempts < 2 && in_array( $code, array( 'network', 'timeout', 'server' ), true );
+		list( $error_code, $message ) = self::browser_failure_message( $code, $status, (bool) $this->api_key() );
+		$this->store->update_result(
+			$result_id,
+			array(
+				'status'     => $retry ? 'pending' : 'failed',
+				'attempts'   => $attempts,
+				'error_code' => $error_code,
+				'error'      => $message,
+			)
+		);
+		if ( ! $retry ) {
+			$this->finish_run_if_complete( $result['run_id'] );
+		}
+		return $this->store->get_result( $result_id );
+	}
+
+	/**
+	 * Runs one open test of a run inline with the keyed client (server-pull fallback for when the browser
+	 * cannot reach Google). Guarded by a short lock so two requests don't test at once.
+	 *
+	 * @param int $run_id Run id.
+	 * @return array{ advanced: bool } Whether a test ran.
+	 */
+	public function advance_run( int $run_id ): array {
+		$lock = 'seoc_speed_advance_' . $run_id;
+		if ( ! $this->acquire_lock( $lock ) ) {
+			return array( 'advanced' => false );
+		}
+		$advanced = false;
+		try {
+			foreach ( $this->store->results_for_run( $run_id ) as $row ) {
+				if ( in_array( $row['status'], SpeedStore::OPEN, true ) ) {
+					$this->test_url( (int) $row['id'] );
+					$advanced = true;
+					break;
+				}
+			}
+		} finally {
+			delete_transient( $lock );
+		}
+		return array( 'advanced' => $advanced );
+	}
+
+	/**
+	 * Re-queues the failed tests of a run (and reopens the run if it had closed) so they can be tried again.
+	 *
+	 * @param int $run_id Run id.
+	 * @return int Number of tests re-queued.
+	 */
+	public function retry_failed( int $run_id ): int {
+		$run = $this->store->get_run( $run_id );
+		if ( null === $run ) {
+			return 0;
+		}
+		$count = 0;
+		foreach ( $this->store->results_for_run( $run_id ) as $row ) {
+			if ( 'failed' === $row['status'] ) {
+				$this->store->update_result(
+					(int) $row['id'],
+					array(
+						'status'     => 'pending',
+						'error_code' => null,
+						'error'      => null,
+					)
+				);
+				++$count;
+			}
+		}
+		if ( $count > 0 ) {
+			$this->store->update_run(
+				$run_id,
+				array(
+					'status'      => 'running',
+					'finished_at' => null,
+				)
+			);
+		}
+		return $count;
+	}
+
+	/**
+	 * Transient lock.
+	 *
+	 * @param string $key Lock key.
+	 */
+	private function acquire_lock( string $key ): bool {
+		if ( get_transient( $key ) ) {
+			return false;
+		}
+		set_transient( $key, 1, 120 );
+		return true;
+	}
+
+	/**
+	 * Whether two URLs are the same page of this site (host + path, ignoring scheme, trailing slash and query).
+	 *
+	 * @param string $a First URL.
+	 * @param string $b Second URL.
+	 */
+	private static function same_page( string $a, string $b ): bool {
+		$na = self::normalise_page( $a );
+		$nb = self::normalise_page( $b );
+		return '' !== $na && $na === $nb;
+	}
+
+	/**
+	 * Host + path of a URL, lowercased, without a leading www or a trailing slash.
+	 *
+	 * @param string $url URL.
+	 */
+	private static function normalise_page( string $url ): string {
+		$parts = wp_parse_url( $url );
+		if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+			return '';
+		}
+		$host = preg_replace( '/^www\./', '', strtolower( $parts['host'] ) );
+		$path = isset( $parts['path'] ) ? rtrim( $parts['path'], '/' ) : '';
+		return $host . $path;
+	}
+
+	/**
+	 * A machine code and plain-English message for a browser-side PSI failure.
+	 *
+	 * @param string $code    Browser code.
+	 * @param int    $status  HTTP status.
+	 * @param bool   $has_key Whether a Google key is configured.
+	 * @return array{0: string, 1: string}
+	 */
+	private static function browser_failure_message( string $code, int $status, bool $has_key ): array {
+		switch ( $code ) {
+			case 'quota':
+				return $has_key
+					? array( 'seoc_psi_quota', __( "Google's daily quota for your API key is used up. It resets after midnight Pacific time.", 'seo-console' ) )
+					: array( 'seoc_psi_quota', __( 'The shared PageSpeed quota is busy. Add a free Google API key in Settings for your own quota, or try again later.', 'seo-console' ) );
+			case 'forbidden':
+				return array( 'seoc_psi_auth', __( 'Google refused the request. If you set a Google API key, check that the PageSpeed Insights API is enabled for it.', 'seo-console' ) );
+			case 'timeout':
+				return array( 'seoc_psi_timeout', __( 'The page took too long for Google to analyse. Very heavy pages can time out; try again or reduce the page weight.', 'seo-console' ) );
+			case 'network':
+				return array( 'seoc_psi_network', __( 'Your browser could not reach Google PageSpeed. Check your connection and try again.', 'seo-console' ) );
+			case 'server':
+				/* translators: %d: HTTP status code */
+				return array( 'seoc_psi_http', $status ? sprintf( __( 'Google returned an error (HTTP %d). Try again in a moment.', 'seo-console' ), $status ) : __( 'Google returned an error. Try again in a moment.', 'seo-console' ) );
+			default:
+				return array( 'seoc_psi_failed', __( 'The speed test could not be completed. Try again.', 'seo-console' ) );
+		}
 	}
 
 	/**
