@@ -7,6 +7,19 @@ export const getOverview = ( signal ) => apiGet( 'speed/overview', {}, signal );
 export const startRun = () => apiPost( 'speed/runs' );
 export const getRun = ( id, signal ) =>
 	apiGet( `speed/runs/${ parseInt( id, 10 ) }`, {}, signal );
+export const getNextTests = ( id, signal ) =>
+	apiGet( `speed/runs/${ parseInt( id, 10 ) }/next`, {}, signal );
+export const ingestResult = ( rid, result ) =>
+	apiPost( `speed/results/${ parseInt( rid, 10 ) }/ingest`, result );
+export const reportFailure = ( rid, code, httpStatus ) =>
+	apiPost( `speed/results/${ parseInt( rid, 10 ) }/report-failure`, {
+		code,
+		http_status: httpStatus || 0,
+	} );
+export const advanceRun = ( id ) =>
+	apiPost( `speed/runs/${ parseInt( id, 10 ) }/advance` );
+export const retryFailed = ( id ) =>
+	apiPost( `speed/runs/${ parseInt( id, 10 ) }/retry-failed` );
 export const getRecommendations = ( signal ) =>
 	apiGet( 'speed/recommendations', {}, signal );
 export const getTweaks = ( signal ) => apiGet( 'speed/tweaks', {}, signal );
